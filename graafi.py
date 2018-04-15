@@ -131,8 +131,13 @@ class node():
         return BBi
 
     def update(self):
+        self.runCargoFun(self.cargo["Function"], self.cargo["Args"])
         pass
     
+    def runCargoFun(self,CargoFun,args):
+        if CargoFun is not None:
+            self.cargo["Args"]= CargoFun((args), node = self)
+
     def drawNode(self,im, r=5, scale=1, cent=np.array([0,0]),label=False, logo=True):
         x= int((self.x-cent[0])*scale)
         y= int((self.y-cent[1])*scale)
@@ -325,8 +330,16 @@ class edge():
         self.label = ""
         self.labelpos = 0
 
-    def update(self):
-        pass
+    def update(self): #SIMPLE SWITCH FOR NOW... ei toimi useamman noden ryppäissä...
+        n1a = None
+        n2a = None
+        if self.label in node1.cargo[args]:
+            n1a=node1.cargo[args][self.label]
+        if self.label in node1.cargo[args]:
+            n2a=node2.cargo[args][self.label]
+        node1.cargo[args][self.label]=n2a
+        node2.cargo[args][self.label]=n1a
+        
 
     def drawEdge(self,im,scale=1,cent=np.array([0,0]), label=False):
         n1= self.node1
@@ -363,6 +376,7 @@ class graph():
         self.hDx = 0
         self.hDy = 0
         self.mousememory = {}
+        self.majorUPD = True
 
     def BoundingBoxSet(self):
         BB=np.array([999999999.0,-999999999.0,999999999.0,-999999999.0])
@@ -396,7 +410,7 @@ class graph():
         return img
  
     def GRImageParams(self):
-        margi=6
+        margi=20
         BB=self.BoundingBoxSet()
         c=np.array([0,0])
         scx=(self.imgsize[1]-margi)/(BB[1]-BB[0])
@@ -411,6 +425,19 @@ class graph():
         return sc,c,BB
 
     def DrawGraph2(self, rajat = False, nodes = True, edges=True,labels=False,elabels =False,labelmap=False,logos=True):
+        if "iszdx" in self.mousememory:
+            dx = self.mousememory.pop("iszdx",None)
+            self.imgsize[1] = self.imgsize[1] + dx
+            self.majorUPD = True
+            if "xi" in self.mousememory:
+                self.mousememory["xi"]=self.mousememory["xi"]+dx
+        if "iszdy" in self.mousememory:
+            dy = self.mousememory.pop("iszdy",None)
+            self.imgsize[0] = self.imgsize[0] + dy
+            self.majorUPD = True
+            if "yi" in self.mousememory:
+                self.mousememory["yi"]=self.mousememory["yi"]+dy
+
         img=np.ones(self.imgsize, dtype = np.uint8)
         img[:,:,0]=self.bgcolor[0]
         img[:,:,1]=self.bgcolor[1]
@@ -419,7 +446,9 @@ class graph():
         sc,c,BB = self.GRImageParams()
         
         if rajat:
-            self.GRRajat()   
+            if self.majorUPD:
+                self.GRRajat()
+                self.majorUPD = False   
             for n in self.nodes:
                 if not (n.image is None):
                     n.liitaKuva(img, sc=sc,c=c)
@@ -449,7 +478,11 @@ class graph():
             for n in self.nodes:
                 if not rajat: n.tontinrajat=[]
                 n.drawNode(img,scale=sc, cent=c,label=labels,logo=logos)        
-
+        
+        x0 = (self.imgsize[1]-30, self.imgsize[0]-30)
+        x1 = (self.imgsize[1]-20, self.imgsize[0]-20)
+        cv2.rectangle(img,x0,x1,(130,100,100),-1)
+        cv2.rectangle(img,x0,x1,(230,200,200),2)
         return img
     
     def GRRajat(self):
@@ -592,6 +625,7 @@ class graph():
         self.PotNodeSize(sc=sc)
         #self.PotNodePoints(sc=sc)
         self.StepAllPot()
+        self.majorUPD=True
 
     def ClearPot(self):
         for n in self.nodes:
@@ -680,6 +714,13 @@ class graph():
  
 
     def LBUTTONDOWN(self,x,y):
+        
+        x0 = (self.imgsize[1]-30, self.imgsize[0]-30)
+        x1 = (self.imgsize[1]-20, self.imgsize[0]-20)
+        if (x0[0] <= x <= x1[0]) and (x0[1] <= y <= x1[1]):
+            self.mousememory.update({"imsize":True, "xi":x ,"yi": y})
+            return
+        
         found, n = self.NodeinXY(x,y)
         
         if found:
@@ -691,7 +732,15 @@ class graph():
     
     
     def LBUTTONUP(self,x,y):
-        #print(self.highlightednode, self.hdy, self.hdx, x, y)
+        if "imsize" in self.mousememory:
+            dx = x -self.mousememory.pop("xi")
+            dy = y -self.mousememory.pop("yi")
+            self.mousememory.update({"imsize":True, "iszdx":dx ,"iszdy": dy})
+            self.mousememory.pop("imsize")
+            #self.imgsize[0] = self.imgsize[0] + dx
+            #self.imgsize[1] = self.imgsize[1] + dy
+            return
+
         self.highlightednode = None      
 
     def RBUTTONDOWN(self,x,y):
@@ -701,12 +750,21 @@ class graph():
         self.highlightednode = None      
     
 
-    def MOUSEMOVE(self,x,y):
+    def MOUSEMOVE(self,x,y):        
+        if "imsize" in self.mousememory:
+            dx = x -self.mousememory["xi"]
+            dy = y -self.mousememory["yi"]
+            self.mousememory.update({"imsize":True, "iszdx":dx ,"iszdy": dy})
+            #self.imgsize[0] = self.imgsize[0] + dx
+            #self.imgsize[1] = self.imgsize[1] + dy
+            return
+
         if self.highlightednode is not None:
             #print(self.highlightednode, self.hdy, self.hdx, x, y)
             sc,c,BB = self.GRImageParams()
             self.highlightednode.x = c[0] + x/sc + self.hDx
             self.highlightednode.y = c[1] + y/sc + self.hDy
+            self.majorUPD = True
             return False
  
 
@@ -838,11 +896,13 @@ def IMAGEStoDICT(IMAGES, GRAAFI):
     return GRAAFI
 
 
-def DICTfromCARGOFUN(CARGOFUN,ARGS,GRAAFI):
+def DICTfromCARGOFUN(CARGOFUN,ARGS,ARGVALUES,GRAAFI):
     NodeNames=list(ARGS.keys())
     i=0
     for nn in NodeNames:
-        GRAAFI["Nodes"][nn]={"Args":ARGS[nn]}
+        GRAAFI["Nodes"][nn]={"Args":{}}
+        for a in ARGS[nn]:
+            GRAAFI["Nodes"][nn]["Args"][a]=ARGVALUES[a]
         GRAAFI["Nodes"][nn]["Function"]=CARGOFUN[nn]        
     for nn in NodeNames[:-1]:
         i+=1
@@ -907,6 +967,17 @@ def ALTEdgesfromKEYWDS(KEYWDS,GRAAFI):
         n1.size=n1.size+5.0
         n2.size=n2.size+5.0
     return edges
+
+def createARGLIST(ARGS,ARGLIST):
+    NodeNames=list(ARGS.keys())
+    for nn in NodeNames:
+        for a in ARGS[nn]:
+            ARGLIST.update({a:None})
+            
+def createNODELIST(ANYLIST,NODELIST):
+    NodeNames=list(ANYLIST.keys())
+    for nn in NodeNames:
+        NODELIST.update({nn:None})
 
 ''' EXAMPLE OF IMAGES, KEYWDS, ALTKEYWDS
 IMAGES={
