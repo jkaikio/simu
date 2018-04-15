@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 from random import shuffle
+import time
 
 def Vlen(V):
     vlen=V[0]*V[0]+V[1]*V[1]
@@ -145,7 +146,7 @@ class node():
         cv2.circle(im, (x,y),r,self.color,1)
         
         
-        if logo and (self.image is not None):        
+        if logo and (self.image is not None) and not self.maximized:        
             size=(8*int(r),8*int(r))
             f = np.zeros((size[1],size[0],4), np.uint8)
             f4 = np.zeros((size[1],size[0]), np.uint8)
@@ -179,8 +180,32 @@ class node():
             #else:
             #    img[X1:X1+l,X0:X0+w] = addedimage
             #    cv2.rectangle(img, (X0,X1),(X0+w,X1+l),self.color,2)
-        
+        if self.maximized and (self.image is not None):
+            size=(int(len(im[0])/2),int(len(im)/2))
+            scy=size[0]/(len(self.image[0]))
+            scx=size[1]/(len(self.image))
+            sca=min(scx,scy)
+            sz=(int(sca*len(self.image[0])),int(sca*len(self.image)))
+            addedim=cv2.resize(self.image, sz)
+            X1=y 
+            X0=x
+            if X0+len(addedim[0]) > len(im[0]): X0-=len(addedim[0])
+            if X1+ len(addedim) > len(im): X1-=len(addedim)
+            l=len(addedim)
+            w=len(addedim[0])
+            im[X1:X1+l,X0:X0+w] = addedim
+            cv2.rectangle(im,(X0,X1),(X0+w,X1+l),(230,200,200),2)
+            x0 = (x-5, y-5)
+            x1 = (x+5, y+5)
+            cv2.rectangle(im,x0,x1,(130,100,100),-1)
+            cv2.rectangle(im,x0,x1,(230,200,200),2)
+
+
         if label:
+            BBi=self.BBinImage(scale=scale,cent=cent)
+            ts=cv2.getTextSize(self.label,cv2.FONT_HERSHEY_PLAIN,1.2,3)
+            x=int((BBi[0]+BBi[1]-ts[0][0])/2)
+            y=int((BBi[2]+BBi[3]+3*ts[0][1])/2)
             cv2.putText(im,self.label,(x,y),cv2.FONT_HERSHEY_PLAIN,1.2,(255,255,255),3)
             cv2.putText(im,self.label,(x,y),cv2.FONT_HERSHEY_PLAIN,1.2,(0,0,0),2)
 
@@ -331,14 +356,17 @@ class edge():
         self.labelpos = 0
 
     def update(self): #SIMPLE SWITCH FOR NOW... ei toimi useamman noden ryppäissä...
-        n1a = None
-        n2a = None
-        if self.label in node1.cargo[args]:
-            n1a=node1.cargo[args][self.label]
-        if self.label in node1.cargo[args]:
-            n2a=node2.cargo[args][self.label]
-        node1.cargo[args][self.label]=n2a
-        node2.cargo[args][self.label]=n1a
+        n1a = [None,0]
+        n2a = [None,0]
+        if self.label in self.node1.cargo["Args"]:
+            n1a=self.node1.cargo["Args"][self.label]
+        if self.label in self.node1.cargo["Args"]:
+            n2a=self.node2.cargo["Args"][self.label]
+        if n1a[1]>n2a[1]: n2a=n1a
+        else: n1a=n2a
+
+        self.node1.cargo["Args"][self.label]=n2a
+        self.node2.cargo["Args"][self.label]=n1a
         
 
     def drawEdge(self,im,scale=1,cent=np.array([0,0]), label=False):
@@ -377,6 +405,10 @@ class graph():
         self.hDy = 0
         self.mousememory = {}
         self.majorUPD = True
+        self.controlpanelflags={"nodes":True,"logos":True,"labels":True,"edges":True,"elabels":False,
+                                "labelmap":True, "rajat":False,"aspectlock":True,"move":True,"update":True}
+        self.cpmargin =70
+        self.cpgeom=[0,0]
 
     def BoundingBoxSet(self):
         BB=np.array([999999999.0,-999999999.0,999999999.0,-999999999.0])
@@ -408,23 +440,111 @@ class graph():
             e.drawEdge(img,scale=sc,cent=c)
             
         return img
+    
+
+    def DrawControlPanel(self,img):
+        w=self.cpmargin
+        marg=15
+        hi = self.imgsize[0]
+        wi = self.imgsize[1]
+        cpdkeys= list(self.controlpanelflags.keys())
+        nflags=len(cpdkeys)
+        h= min((hi-w)/nflags,w-marg)
+        colorg = (   int(self.bgcolor[0] /2)  ,  int(self.bgcolor[1] /2 + 60) ,  int( self.bgcolor[2] /2)   )
+        for i in range(nflags):
+            x0 = (wi-w+marg,int(i*h)+marg)
+            x1 = (wi-marg,int((i+1)*h))
+            if self.controlpanelflags[cpdkeys[i]]:
+                cv2.rectangle(img,x0,x1,colorg,-1)
+            #else:
+            #    cv2.rectangle(img,x0,x1,(130,100,100),-1)
+            cv2.rectangle(img,x0,x1,(230,200,200),2)
+        x0 = (wi-w+marg,hi-marg)
+        x1 = (wi-marg,hi-w+marg)
+        cv2.rectangle(img,x0,x1,(230,200,200),2)
+        self.cpgeom=[h,marg]
+    
+    def ChangeCpInXY(self,x,y):
+        cpdkeys= list(self.controlpanelflags.keys())
+        h=self.cpgeom[0]
+        marg=self.cpgeom[1]
+        cpm=self.cpmargin
+        wi = self.imgsize[1]
+        i = int(np.floor(y/h))
+        y = y%h
+        if (marg < wi-x < cpm-marg) and (marg < y) and (i < len(cpdkeys)):
+            self.controlpanelflags[cpdkeys[i]] = not self.controlpanelflags[cpdkeys[i]]
+            return True
+        return False
+
+
+    
+    def getControlPanelFlags(self):
+        if "nodes" in self.controlpanelflags:
+            nodes = self.controlpanelflags["nodes"]
+        else: nodes = False
+        if "logos" in self.controlpanelflags:
+            logos = self.controlpanelflags["logos"]
+        else: logos= False    
+        if "labels" in self.controlpanelflags:
+            labels = self.controlpanelflags["labels"]
+        else: labels = False   
+        if "edges" in self.controlpanelflags:
+            edges = self.controlpanelflags["edges"]
+        else: edges = False    
+        if "elabels" in self.controlpanelflags:
+            elabels = self.controlpanelflags["elabels"]
+        else: elabels = False    
+        if "labelmap" in self.controlpanelflags:
+            labelmap = self.controlpanelflags["labelmap"]
+        else: labelmap = False    
+        if "rajat" in self.controlpanelflags:
+            rajat = self.controlpanelflags["rajat"]
+        else: rajat = False    
+        if "aspectlock" in self.controlpanelflags:
+            aspectlock = self.controlpanelflags["aspectlock"]
+        else: aspectlock = False    
+    
+        return nodes,logos,labels,edges,elabels,labelmap,rajat,aspectlock
+
+    def RunWithControlPanel(self):
+        cv2.startWindowThread()
+        cv2.namedWindow('Graafi')
+        cv2.setMouseCallback('Graafi',self.mouseaction)
+        while True:
+            if "move" in self.controlpanelflags:
+                if self.controlpanelflags["move"]:
+                    self.MoveAll(sc=1)
+            if "update" in self.controlpanelflags:
+                if self.controlpanelflags["update"]:
+                    self.UpdateAll()
+            img = self.DrawGraph2(cp = True)#rajat=False, edges=True,labels=True, nodes =True, elabels=False, labelmap=True,logos=True)
+            cv2.imshow("Graafi",img)
+            inp= cv2.waitKey(1)
+            if inp==27:
+                break
+        cv2.destroyWindow("Graafi")
+        cv2.waitKey(1)
+
  
+
     def GRImageParams(self):
-        margi=20
+        margi=50
+        rightmargin = self.cpmargin
         BB=self.BoundingBoxSet()
         c=np.array([0,0])
-        scx=(self.imgsize[1]-margi)/(BB[1]-BB[0])
+        scx=(self.imgsize[1]-margi-rightmargin)/(BB[1]-BB[0])
         scy=(self.imgsize[0]-margi)/(BB[3]-BB[2])
         sc=min(scx,scy)
         
-        BB[1]=(self.imgsize[1]-margi)/sc+BB[0]
+        BB[1]=(self.imgsize[1]-margi-rightmargin)/sc+BB[0]
         BB[3]=(self.imgsize[0]-margi)/sc+BB[2]
         margper2=margi/sc/2
         c[0]=BB[0]-margper2
         c[1]=BB[2]-margper2
         return sc,c,BB
 
-    def DrawGraph2(self, rajat = False, nodes = True, edges=True,labels=False,elabels =False,labelmap=False,logos=True):
+    def DrawGraph2(self, rajat = False, nodes = True, edges=True,labels=False,elabels =False,labelmap=False,logos=True,cp=False):
         if "iszdx" in self.mousememory:
             dx = self.mousememory.pop("iszdx",None)
             self.imgsize[1] = self.imgsize[1] + dx
@@ -437,6 +557,10 @@ class graph():
             self.majorUPD = True
             if "yi" in self.mousememory:
                 self.mousememory["yi"]=self.mousememory["yi"]+dy
+        if cp:
+           nodes,logos,labels,edges,elabels,labelmap,rajat,aspect = self.getControlPanelFlags() 
+        else: aspect =False
+            
 
         img=np.ones(self.imgsize, dtype = np.uint8)
         img[:,:,0]=self.bgcolor[0]
@@ -451,7 +575,7 @@ class graph():
                 self.majorUPD = False   
             for n in self.nodes:
                 if not (n.image is None):
-                    n.liitaKuva(img, sc=sc,c=c)
+                    n.liitaKuva(img, sc=sc,c=c,aspectlock = aspect)
                     n.DrawRajat(img, r=5, scale=sc, cent=c,borders=True)
                 else:
                     n.DrawRajat(img, r=5, scale=sc, cent=c)
@@ -477,10 +601,12 @@ class graph():
         if nodes:
             for n in self.nodes:
                 if not rajat: n.tontinrajat=[]
-                n.drawNode(img,scale=sc, cent=c,label=labels,logo=logos)        
+                n.drawNode(img,scale=sc, cent=c,label=labels,logo=logos)  
+
+        if cp: self.DrawControlPanel(img)      
         
-        x0 = (self.imgsize[1]-30, self.imgsize[0]-30)
-        x1 = (self.imgsize[1]-20, self.imgsize[0]-20)
+        x0 = (self.imgsize[1]-60, self.imgsize[0]-60)
+        x1 = (self.imgsize[1]-50, self.imgsize[0]-50)
         cv2.rectangle(img,x0,x1,(130,100,100),-1)
         cv2.rectangle(img,x0,x1,(230,200,200),2)
         return img
@@ -559,7 +685,7 @@ class graph():
         #sc,c,BB = self.GRImageParams()
         #mx=int((BB[1]-BB[0])/resolution*sc)
         #my=int((BB[3]-BB[2])/resolution*sc)
-        mx=int(len(im[0])/resolution)
+        mx=int((len(im[0])-self.cpmargin)/resolution) 
         my=int(len(im)/resolution)
         bx=int(mx/3)
         by=int(my/3)
@@ -682,12 +808,16 @@ class graph():
         if event == cv2.EVENT_LBUTTONDOWN:
             if flags == 33:
                 self.altLBUTTONDOWN(x,y)
+            elif flags == 9:
+                self.LBUTTONDBLCLK(x,y)
             else:
                 self.LBUTTONDOWN(x,y)
         
         if event == cv2.EVENT_RBUTTONDOWN:
             self.RBUTTONDOWN(x,y)    
-              
+
+        if event == cv2.EVENT_LBUTTONDBLCLK:
+            self.LBUTTONDBLCLK(x,y)     
 
         if event == cv2.EVENT_LBUTTONUP:
             if flags == 33:
@@ -715,11 +845,14 @@ class graph():
 
     def LBUTTONDOWN(self,x,y):
         
-        x0 = (self.imgsize[1]-30, self.imgsize[0]-30)
-        x1 = (self.imgsize[1]-20, self.imgsize[0]-20)
+        x0 = (self.imgsize[1]-60, self.imgsize[0]-60)
+        x1 = (self.imgsize[1]-50, self.imgsize[0]-50)
         if (x0[0] <= x <= x1[0]) and (x0[1] <= y <= x1[1]):
             self.mousememory.update({"imsize":True, "xi":x ,"yi": y})
             return
+        if x > self.imgsize[1]-self.cpmargin:
+            if self.ChangeCpInXY(x,y):
+                return
         
         found, n = self.NodeinXY(x,y)
         
@@ -729,6 +862,12 @@ class graph():
             self.highlightednode = n
             self.hdx= n.x - c[0] - x/sc
             self.hdy= n.y - c[1] - y/sc 
+    
+    def LBUTTONDBLCLK(self,x,y):
+        found, n = self.NodeinXY(x,y)
+        
+        if found:
+            n.maximized= not n.maximized
     
     
     def LBUTTONUP(self,x,y):
@@ -902,7 +1041,7 @@ def DICTfromCARGOFUN(CARGOFUN,ARGS,ARGVALUES,GRAAFI):
     for nn in NodeNames:
         GRAAFI["Nodes"][nn]={"Args":{}}
         for a in ARGS[nn]:
-            GRAAFI["Nodes"][nn]["Args"][a]=ARGVALUES[a]
+            GRAAFI["Nodes"][nn]["Args"][a]=timedArg(ARGVALUES[a])
         GRAAFI["Nodes"][nn]["Function"]=CARGOFUN[nn]        
     for nn in NodeNames[:-1]:
         i+=1
@@ -978,6 +1117,9 @@ def createNODELIST(ANYLIST,NODELIST):
     NodeNames=list(ANYLIST.keys())
     for nn in NodeNames:
         NODELIST.update({nn:None})
+
+def timedArg( a ):
+    return [a,time.time()]
 
 ''' EXAMPLE OF IMAGES, KEYWDS, ALTKEYWDS
 IMAGES={

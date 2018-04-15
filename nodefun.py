@@ -1,14 +1,15 @@
 import numpy as np
+from graafi import *
 import cv2
 
 def NF_Monitor(args, node):
     if not "NF_Monitor" in args:
-        NF_Monitor = Monitor(label = node.label)
-        NF_Monitor.sourcelabels = list(args.keys())
-        args["NF_Monitor"]=NF_Monitor
-    NF_Monitor=args["NF_Monitor"]
-    NF_Monitor.update(args)
-    node.image = NF_Monitor.Draw()
+        NFMonitor = Monitor(label = node.label)
+        NFMonitor.sourcelabels = list(args.keys())
+        args["NF_Monitor"]=NFMonitor
+    NFMonitor=args["NF_Monitor"]
+    NFMonitor.update(args)
+    node.image = NFMonitor.Draw()
     #node.image = np.zeros((200,200,3),dtype=np.uint8)
     #cv2.putText(node.image,"MONITOR",(10,120),cv2.FONT_HERSHEY_SIMPLEX, 4, (255,255,255) ,4)
 
@@ -34,10 +35,11 @@ class Monitor():  #Template function
         #self.sourcelabels = []
         data=[]
         for l in self.sourcelabels:
-            if (type(args[l]) != bool) and (args[l] is not None)and (type(args[l]) != str):
-                args[l]=args[l]+np.random.random()-0.5  ##TOIMIIKO??
-            data.append(args[l])
+            #if (type(args[l]) != bool) and (args[l] is not None)and (type(args[l]) != str):
+            #    args[l]=args[l]+np.random.random()-0.5  ##TOIMIIKO??
+            data.append(args[l][0])
         self.MonitorData.append(data)
+        return args
 
     def Draw(self):
         #if not self.minimized:
@@ -77,4 +79,68 @@ class Monitor():  #Template function
                         cv2.FONT_HERSHEY_SIMPLEX, .5, color )
         return img
 
-    
+def NF_Environment(args, node):
+    if not "NF_Environment" in args:
+        NFEnvironment = Environment(label = node.label)
+        ##NF_Environment.sourcelabels = list(args.keys())
+        args["NF_Environment"]=NFEnvironment
+    NFEnvironment=args["NF_Environment"]
+    args = NFEnvironment.update(args)
+    node.color = NFEnvironment.bgcolor
+    #node.image = NF_Environment.Draw()
+    #node.image = np.zeros((200,200,3),dtype=np.uint8)
+    #cv2.putText(node.image,"MONITOR",(10,120),cv2.FONT_HERSHEY_SIMPLEX, 4, (255,255,255) ,4)
+
+    return args
+
+
+class Environment():  #Template function
+    def __init__(self, label="Environment"):
+        self.type = "Environment"
+        self.label =label
+        self.parent = None
+        self.inside=False
+        self.time=0.0 +0.*24*3600# syyspäivä
+        self.deltatime=60.0 #sekunteina 
+        self.bgcolor = (50,20,5)
+
+    def update(self, args):
+        self.time+=self.deltatime #vaihdetaan logiikan pyytämään aikahyppyyn myöhemmin
+        time =12*3600 + self.time
+        year=time/(365*24*3600)
+        day_of_year=time%(365*24*3600)/(24*3600)
+        hour_of_day=(time%(24*3600))/3600
+        minute=np.floor((time%3600)/60)
+        second= np.floor((time%60)/60)
+        lightness = max((np.cos(hour_of_day/12*np.pi)+\
+                        0.5*np.cos(day_of_year/365*2*np.pi))+\
+                        np.average(np.random.random(5)-0.3),0)
+        self.bgcolor=tuple([min(k*lightness*255,255)for k in [.8,1,1.3]])
+        args["Lightness"] = timedArg(lightness)
+        return args
+
+def NF_SolarCell(args, node): #PIKATESTI...
+    if "Lightness" in args:
+        args["V_PV"] = timedArg(args["Lightness"][0])
+    #if not "NF_Environment" in args:
+    #    NFEnvironment = Environment(label = node.label)
+    #    ##NF_Environment.sourcelabels = list(args.keys())
+    #    args["NF_Environment"]=NFEnvironment
+    #NFEnvironment=args["NF_Environment"]
+    #args = NFEnvironment.update(args)
+    #node.color = NFEnvironment.bgcolor
+    return args
+
+#def NF_MainSwitch(args, node): #PIKATESTI...
+#    if "OnStata_Main" in args:
+#        args["V_PV"] = timedArg(args["Lightness"][0])
+    #if not "NF_Environment" in args:
+    #    NFEnvironment = Environment(label = node.label)
+    #    ##NF_Environment.sourcelabels = list(args.keys())
+    #    args["NF_Environment"]=NFEnvironment
+    #NFEnvironment=args["NF_Environment"]
+    #args = NFEnvironment.update(args)
+    #node.color = NFEnvironment.bgcolor
+#    return args
+
+   
