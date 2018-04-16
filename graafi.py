@@ -874,9 +874,10 @@ class graph():
 
     def mouseaction(self,event, x,y,flags,param):
         #GR = param
-        #print("Hello")
+        
         if event == cv2.EVENT_LBUTTONDOWN:
-            if flags == 33:
+            #print(event,flags)
+            if flags == 33 or flags == 32:
                 self.altLBUTTONDOWN(x,y)
             elif flags == 9:
                 self.LBUTTONDBLCLK(x,y)
@@ -890,7 +891,8 @@ class graph():
             self.LBUTTONDBLCLK(x,y)     
 
         if event == cv2.EVENT_LBUTTONUP:
-            if flags == 33:
+            #print(event,flags)
+            if flags == 33 or flags ==32:
                 self.altLBUTTONUP(x,y)
             else:    
                 self.LBUTTONUP(x,y)
@@ -1190,7 +1192,7 @@ def GRfromDICT(GRAAFI,rx,ry, colorscheme = "BW", color = (128,100,100)):
 
 def Recolor(GR,colorscheme = "BW", color = (128,100,100),balance=0.66,branch=False):
     if colorscheme == "random":
-        schemes=["color","opposites","oppositesrnd","triangle","colorrnd","BW","colorful"]
+        schemes=["color","opposites","neighbour","oppositesrnd","triangle","colorrnd","BW","colorful"]
         colorscheme=schemes[np.random.randint(len(schemes))]
         color =(np.random.randint(255,dtype=int),np.random.randint(255,dtype=int),np.random.randint(255,dtype=int))
         balance=np.random.random()
@@ -1206,6 +1208,16 @@ def Recolor(GR,colorscheme = "BW", color = (128,100,100),balance=0.66,branch=Fal
                 col = (255 - color[0],255 - color[1],255-color[2])
             n.color = col
         if colorscheme == "oppositesrnd":
+            col = color
+            if np.random.random()>balance:
+                cmx=max(color)
+                col= (cmx - color[0],cmx - color[1],cmx-color[2])
+            c=np.random.random()
+            cc=np.random.random()*(1-c)
+            #cc=cc*cc*cc
+            col = (int(c*col[0]+cc*255),int(c*col[1]+cc*255),int(c*col[2]+cc*255))
+            n.color = col
+        if colorscheme == "neighbour": #kesken
             col = color
             if np.random.random()>balance:
                 cmx=max(color)
@@ -1258,10 +1270,10 @@ def colorBranches(GR,order=3, sat = 0.1, inv=True):
             c1=(c/2+c1/2)
             c2=(c/2+c2/2)
             if sat:
-                m1=max(c1)
+                m1=max(max(c1),1)
                 c1=c1-min(c1)*sat
                 c1=c1/max(c1)*m1
-                m2=max(c2)
+                m2=max(max(c2),1)
                 c2=c2-min(c2)*sat
                 c2=c2/max(c2)*m2
 
