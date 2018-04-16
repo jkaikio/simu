@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 from random import shuffle
 import time
+import threading
 
 def Vlen(V):
     vlen=V[0]*V[0]+V[1]*V[1]
@@ -206,6 +207,10 @@ class node():
             ts=cv2.getTextSize(self.label,cv2.FONT_HERSHEY_PLAIN,1.2,3)
             x=int((BBi[0]+BBi[1]-ts[0][0])/2)
             y=int((BBi[2]+BBi[3]+3*ts[0][1])/2)
+            if x+ts[0][0]>len(im[0]):
+                x=len(im[0])-ts[0][0]
+            if x<0:
+                x=0
             cv2.putText(im,self.label,(x,y),cv2.FONT_HERSHEY_PLAIN,1.2,(255,255,255),3)
             cv2.putText(im,self.label,(x,y),cv2.FONT_HERSHEY_PLAIN,1.2,(0,0,0),2)
 
@@ -406,7 +411,7 @@ class graph():
         self.mousememory = {}
         self.majorUPD = True
         self.controlpanelflags={"nodes":True,"logos":True,"labels":True,"edges":True,"elabels":False,
-                                "labelmap":True, "rajat":False,"aspectlock":True,"move":True,"update":True}
+                                "labelmap":False, "rajat":False,"aspectlock":True,"color":False,"move":True,"update":True,"video":False}
         self.cpmargin =70
         self.cpgeom=[0,0]
 
@@ -459,9 +464,19 @@ class graph():
             #else:
             #    cv2.rectangle(img,x0,x1,(130,100,100),-1)
             cv2.rectangle(img,x0,x1,(230,200,200),2)
+            ts=cv2.getTextSize(cpdkeys[i][0],cv2.FONT_HERSHEY_PLAIN,1.4,2)
+            x=int( (x0[0]+ x1[0] - ts[0][0]) /2 )
+            y=int( (x0[1]+ x1[1] + ts[0][1]) /2 )
+            cv2.putText(img,cpdkeys[i][0],(x,y),cv2.FONT_HERSHEY_PLAIN,1.4,(230,200,200),2)
+ 
         x0 = (wi-w+marg,hi-marg)
         x1 = (wi-marg,hi-w+marg)
         cv2.rectangle(img,x0,x1,(230,200,200),2)
+        ts=cv2.getTextSize("z",cv2.FONT_HERSHEY_PLAIN,1.4,2)
+        x=int( (x0[0]+ x1[0] - ts[0][0]) /2 )
+        y=int( (x0[1]+ x1[1] + ts[0][1]) /2 )
+        cv2.putText(img,"z",(x,y),cv2.FONT_HERSHEY_PLAIN,1.4,(230,200,200),2)
+ 
         self.cpgeom=[h,marg]
     
     def ChangeCpInXY(self,x,y):
@@ -525,7 +540,59 @@ class graph():
                 break
         cv2.destroyWindow("Graafi")
         cv2.waitKey(1)
+    
+    
 
+    def RunThreaded(self,video=False):
+        if video: self.controlpanelflags["video"] = True
+        upd=False
+        mov=False
+        vid=False
+        cv2.startWindowThread()
+        cv2.namedWindow('Graafi')
+        cv2.setMouseCallback('Graafi',self.mouseaction)
+        while True:
+            
+            if "update" in self.controlpanelflags:
+                if self.controlpanelflags["update"]:
+                    if not upd:
+                        GRUpd=GRUpdateThread(1,self)
+                        GRUpd.start()
+                        upd=True
+                else: upd= False
+                    
+            if "move" in self.controlpanelflags:
+                if self.controlpanelflags["move"]:
+                    self.MoveAll(sc=1)
+                    #if not mov:
+                    #    GRMov=GRMoveThread(2,self)
+                    #    GRMov.start()
+                    #    mov=True
+                else: mov = False
+            
+            img = self.DrawGraph2(cp = True)#rajat=False, edges=True,labels=True, nodes =True, elabels=False, labelmap=True,logos=True)
+            
+            if "video" in self.controlpanelflags:
+                if self.controlpanelflags["video"]:
+                    if not vid:
+                        writer = cv2.VideoWriter("output.avi", cv2.VideoWriter_fourcc(*"MJPG"), 30,(self.imgsize[1],self.imgsize[0])) 
+                        vid = True
+                    writer.write(img)
+                    cv2.circle(img,(20,20),10,(0,0,255), -1)
+                    cv2.putText(img,"REC",(35,25), cv2.FONT_HERSHEY_PLAIN,1.5,(255,255,255),2)
+                else:
+                    if vid:
+                        writer.release()
+                        vid = False
+
+            cv2.imshow("Graafi",img)
+            inp= cv2.waitKey(1)
+            if inp==27:
+                break
+        self.controlpanelflags["move"]=False
+        self.controlpanelflags["update"]=False
+        cv2.destroyWindow("Graafi")
+        cv2.waitKey(1)
  
 
     def GRImageParams(self):
@@ -545,16 +612,22 @@ class graph():
         return sc,c,BB
 
     def DrawGraph2(self, rajat = False, nodes = True, edges=True,labels=False,elabels =False,labelmap=False,logos=True,cp=False):
+        if self.controlpanelflags["color"]:
+            Recolor(self,colorscheme ="random")
+            self.controlpanelflags["color"]=False
+
         if "iszdx" in self.mousememory:
             dx = self.mousememory.pop("iszdx",None)
-            self.imgsize[1] = self.imgsize[1] + dx
-            self.majorUPD = True
+            if not self.controlpanelflags["video"]:
+                self.imgsize[1] = self.imgsize[1] + dx
+                self.majorUPD = True
             if "xi" in self.mousememory:
                 self.mousememory["xi"]=self.mousememory["xi"]+dx
         if "iszdy" in self.mousememory:
             dy = self.mousememory.pop("iszdy",None)
-            self.imgsize[0] = self.imgsize[0] + dy
-            self.majorUPD = True
+            if not self.controlpanelflags["video"]:
+                self.imgsize[0] = self.imgsize[0] + dy
+                self.majorUPD = True
             if "yi" in self.mousememory:
                 self.mousememory["yi"]=self.mousememory["yi"]+dy
         if cp:
@@ -579,18 +652,14 @@ class graph():
                     n.DrawRajat(img, r=5, scale=sc, cent=c,borders=True)
                 else:
                     n.DrawRajat(img, r=5, scale=sc, cent=c)
-            for n in self.nodes:
-                if n.highlighted:
-                    if not (n.image is None):
-                        n.liitaKuva(img, sc=sc,c=c, fullpict=True)
-                    else:
-                        pass
-                #if n.maximized:
-                #    if not (n.image is None):
-                #        cv2.namedWindow('Maximized')
-                #        cv2.setMouseCallback('Maximized',n.mouseaction,self)
-                #        cv2.imshow("Maximized",n.image)
-                #        cv2.waitKey(1)
+            #for n in self.nodes:
+            #    if n.highlighted:
+            #        if not (n.image is None):
+            #            n.liitaKuva(img, sc=sc,c=c, fullpict=True)
+            #        else:
+            #            pass
+        else:
+            self.majorUPD = True
 
         if labelmap:
             self.DrawLabelMap(img,heatmap=True)   
@@ -605,10 +674,11 @@ class graph():
 
         if cp: self.DrawControlPanel(img)      
         
-        x0 = (self.imgsize[1]-60, self.imgsize[0]-60)
-        x1 = (self.imgsize[1]-50, self.imgsize[0]-50)
-        cv2.rectangle(img,x0,x1,(130,100,100),-1)
-        cv2.rectangle(img,x0,x1,(230,200,200),2)
+        if not self.controlpanelflags["video"]:
+            x0 = (self.imgsize[1]-60, self.imgsize[0]-60)
+            x1 = (self.imgsize[1]-50, self.imgsize[0]-50)
+            cv2.rectangle(img,x0,x1,(130,100,100),-1)
+            cv2.rectangle(img,x0,x1,(230,200,200),2)
         return img
     
     def GRRajat(self):
@@ -932,7 +1002,48 @@ class graph():
         return True, nx
 
 
+class GRUpdateThread(threading.Thread):
+    def __init__(self,threadID,GR,name="UpdateGR"):
+        threading.Thread.__init__(self)
+        self.threadID = threadID
+        self.name=name
+        self.GR = GR
+    
+    def run(self):
+        print("starting upd")
+        while True:
+            if "update" in self.GR.controlpanelflags:
+                if self.GR.controlpanelflags["update"]:
+                    self.GR.UpdateAll()
+                else:
+                    print("ending upd") 
+                    return
+            else: 
+                print("ending upd") 
+                return
 
+class GRMoveThread(threading.Thread):
+    def __init__(self,threadID,GR,name="MoveGR"):
+        threading.Thread.__init__(self)
+        self.threadID = threadID
+        self.name=name
+        self.GR = GR
+    
+    def run(self):
+        print("Starting mov")
+        while True:
+            if "move" in self.GR.controlpanelflags:
+                if self.GR.controlpanelflags["move"]:
+                    self.GR.MoveAll(sc=1)
+                else:
+                    print("Ending mov") 
+                    return
+            else:
+                print("Ending mov")  
+                return
+
+
+ 
 
 class centerline():
     def __init__(self,eX,eV,node1,node2):
@@ -1053,7 +1164,7 @@ def DICTfromCARGOFUN(CARGOFUN,ARGS,ARGVALUES,GRAAFI):
     return GRAAFI
 
 
-def GRfromDICT(GRAAFI,rx,ry):
+def GRfromDICT(GRAAFI,rx,ry, colorscheme = "BW", color = (128,100,100)):
     nodes=[]
     NodeNames=list(GRAAFI["Nodes"].keys())
     for nn in NodeNames:
@@ -1061,11 +1172,6 @@ def GRfromDICT(GRAAFI,rx,ry):
         n.label = nn
         n.image=cv2.imread(GRAAFI["Nodes"][nn]["image"])
         n.cargo = GRAAFI["Nodes"][nn]
-        #n.color=(60,30,0)
-        #n.color=(222,222,222)
-        col=np.random.randint(255,dtype=int)
-        n.color=(col,col,col)
-        #n.color=(np.random.randint(255,dtype=int),np.random.randint(255,dtype=int),np.random.randint(255,dtype=int))
         GRAAFI["Nodes"][nn].update({"node":n})
         nodes.append(n)
     edges=[]
@@ -1077,10 +1183,90 @@ def GRfromDICT(GRAAFI,rx,ry):
         edges.append(ed)
         n1.size=n1.size+5.0
         n2.size=n2.size+5.0
-
     GR=graph(nodes,edges)
+    Recolor(GR, colorscheme, color)
     GR.imgsize=np.array([ry,rx,3])
     return GR
+
+def Recolor(GR,colorscheme = "BW", color = (128,100,100),balance=0.66,branch=False):
+    if colorscheme == "random":
+        schemes=["color","opposites","oppositesrnd","triangle","colorrnd","BW","colorful"]
+        colorscheme=schemes[np.random.randint(len(schemes))]
+        color =(np.random.randint(255,dtype=int),np.random.randint(255,dtype=int),np.random.randint(255,dtype=int))
+        balance=np.random.random()
+        branch=np.random.randint(2)
+
+    
+    for n in GR.nodes:
+        if colorscheme == "color":
+            n.color=color
+        if colorscheme == "opposites":
+            col = color
+            if np.random.random()>balance:
+                col = (255 - color[0],255 - color[1],255-color[2])
+            n.color = col
+        if colorscheme == "oppositesrnd":
+            col = color
+            if np.random.random()>balance:
+                cmx=max(color)
+                col= (cmx - color[0],cmx - color[1],cmx-color[2])
+            c=np.random.random()
+            cc=np.random.random()*(1-c)
+            #cc=cc*cc*cc
+            col = (int(c*col[0]+cc*255),int(c*col[1]+cc*255),int(c*col[2]+cc*255))
+            n.color = col
+        if colorscheme == "triangle":
+            col = color
+            if np.random.random()>balance:
+                col= (col[2],col[0],col[1])
+                if np.random.random()>balance:
+                    col= (col[2],col[0],col[1])
+            c=np.random.random()
+            cc=np.random.random()*(1-c)
+            #cc=cc*cc*cc
+            col = (int(c*col[0]+cc*255),int(c*col[1]+cc*255),int(c*col[2]+cc*255))
+            n.color = col
+        if colorscheme == "colorrnd":
+            col = color
+            c=np.random.random()
+            cc=np.random.random()*(1-c)
+            #cc=cc*cc*cc
+            col = (int(c*col[0]+cc*255),int(c*col[1]+cc*255),int(c*col[2]+cc*255))
+            n.color = col
+        if colorscheme == "BW":
+            col=np.random.randint(255,dtype=int)
+            n.color=(col,col,col)
+        if colorscheme == "colorful":
+            n.color=(np.random.randint(255,dtype=int),np.random.randint(255,dtype=int),np.random.randint(255,dtype=int))
+        if branch:
+            colorBranches(GR)
+
+
+
+def colorBranches(GR,order=3, sat = 0.1, inv=True):
+    for j in range(order):
+        for e in GR.edges:
+            c1=np.array(e.node1.color)
+            c2=np.array(e.node2.color)        
+            s1=e.node1.size
+            s2=e.node2.size
+            if inv:
+                s1=1/s1
+                s2=1/s2
+            c=np.array([0,0,0])
+            c=(c1*s1 +c2*s2)/(s1+s2)
+            c1=(c/2+c1/2)
+            c2=(c/2+c2/2)
+            if sat:
+                m1=max(c1)
+                c1=c1-min(c1)*sat
+                c1=c1/max(c1)*m1
+                m2=max(c2)
+                c2=c2-min(c2)*sat
+                c2=c2/max(c2)*m2
+
+            e.node1.color=(int(c1[0]),int(c1[1]), int(c1[2])  )
+            e.node2.color=(int(c2[0]),int(c2[1]), int(c2[2])  )
 
 def ALTEdgesfromKEYWDS(KEYWDS,GRAAFI):
     NodeNames=list(KEYWDS.keys())
