@@ -1192,7 +1192,7 @@ def GRfromDICT(GRAAFI,rx,ry, colorscheme = "BW", color = (128,100,100)):
 
 def Recolor(GR,colorscheme = "BW", color = (128,100,100),balance=0.66,branch=False):
     if colorscheme == "random":
-        schemes=["color","opposites","neighbour","oppositesrnd","triangle","colorrnd","BW","colorful"]
+        schemes=["color","opposites","neighbour","neighbourrnd","oppositesrnd","triangle","colorrnd","BW","colorful"]
         colorscheme=schemes[np.random.randint(len(schemes))]
         color =(np.random.randint(255,dtype=int),np.random.randint(255,dtype=int),np.random.randint(255,dtype=int))
         balance=np.random.random()
@@ -1217,14 +1217,74 @@ def Recolor(GR,colorscheme = "BW", color = (128,100,100),balance=0.66,branch=Fal
             #cc=cc*cc*cc
             col = (int(c*col[0]+cc*255),int(c*col[1]+cc*255),int(c*col[2]+cc*255))
             n.color = col
-        if colorscheme == "neighbour": #kesken
-            col = color
-            if np.random.random()>balance:
-                cmx=max(color)
-                col= (cmx - color[0],cmx - color[1],cmx-color[2])
+        if colorscheme == "neighbour":
+            col = np.array(color)
+            cmx=max(col)
+            cmn=min(col)
+            mx=np.argmax(col)
+            mn=np.argmin(col)
+            b=[1,1,1]
+            b[mx]=0
+            b[mn]=0
+            md=np.argmax(b)
+            cmd=col[md]
+            #print(cmn,cmd,cmx)
+            csum=cmx-cmn + cmd-cmn
+            delta=(np.random.random()*2-1)*balance*csum
+            colo=np.array((1.0,1.0,1.0))*cmn
+            colo[md]=cmd+delta
+            colo[mx]=cmx-delta
+            if colo[md] < cmn:
+                colo[mx] -= cmn-colo[md]
+                colo[mn] += cmn-colo[md]
+                colo[md] = cmn
+            if colo[mx] < cmn:
+                colo[md] -= cmn-colo[mx]
+                colo[mn] += cmn-colo[mx]
+                colo[mx] = cmn
+            if colo[mx] > 255:
+                colo[mn] += colo[mx]-255
+                colo[mx] = 255
+            if colo[md] > 255:
+                colo[mn] += colo[md]-255
+                colo[md] = 255
+            col = (int(colo[0]),int(colo[1]),int(colo[2]))
+            n.color = col
+        if colorscheme == "neighbourrnd":
+            col = np.array(color)
+            cmx=max(col)
+            cmn=min(col)
+            mx=np.argmax(col)
+            mn=np.argmin(col)
+            b=[1,1,1]
+            b[mx]=0
+            b[mn]=0
+            md=np.argmax(b)
+            cmd=col[md]
+            #print(cmn,cmd,cmx)
+            csum=cmx-cmn + cmd-cmn
+            delta=(np.random.random()*2-1)*balance*csum
+            colo=np.array((1.0,1.0,1.0))*cmn
+            colo[md]=cmd+delta
+            colo[mx]=cmx-delta
+            if colo[md] < cmn:
+                colo[mx] -= cmn-colo[md]
+                colo[mn] += cmn-colo[md]
+                colo[md] = cmn
+            if colo[mx] < cmn:
+                colo[md] -= cmn-colo[mx]
+                colo[mn] += cmn-colo[mx]
+                colo[mx] = cmn
+            if colo[mx] > 255:
+                colo[mn] += colo[mx]-255
+                colo[mx] = 255
+            if colo[md] > 255:
+                colo[mn] += colo[md]-255
+                colo[md] = 255 
+            col = (int(colo[0]),int(colo[1]),int(colo[2]))
+
             c=np.random.random()
             cc=np.random.random()*(1-c)
-            #cc=cc*cc*cc
             col = (int(c*col[0]+cc*255),int(c*col[1]+cc*255),int(c*col[2]+cc*255))
             n.color = col
         if colorscheme == "triangle":
