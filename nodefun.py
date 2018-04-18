@@ -2,14 +2,17 @@ import numpy as np
 from graafi import *
 import cv2
 
-def NF_Monitor(args, node):
+def NF_Monitor(args, node, draw=False):
     if not "NF_Monitor" in args:
         NFMonitor = Monitor(label = node.label)
         NFMonitor.sourcelabels = list(args.keys())
         args["NF_Monitor"]=NFMonitor
     NFMonitor=args["NF_Monitor"]
+    if draw:
+        node.image = NFMonitor.Draw()
+        return args
     NFMonitor.update(args)
-    node.image = NFMonitor.Draw()
+    
     #node.image = np.zeros((200,200,3),dtype=np.uint8)
     #cv2.putText(node.image,"MONITOR",(10,120),cv2.FONT_HERSHEY_SIMPLEX, 4, (255,255,255) ,4)
 
@@ -79,14 +82,17 @@ class Monitor():  #Template function
                         cv2.FONT_HERSHEY_SIMPLEX, .5, color )
         return img
 
-def NF_Environment(args, node):
+def NF_Environment(args, node, draw=False):
     if not "NF_Environment" in args:
         NFEnvironment = Environment(label = node.label)
         ##NF_Environment.sourcelabels = list(args.keys())
         args["NF_Environment"]=NFEnvironment
     NFEnvironment=args["NF_Environment"]
+    if draw:
+        node.color = NFEnvironment.bgcolor 
+        return args   
     args = NFEnvironment.update(args)
-    node.color = NFEnvironment.bgcolor
+
     #node.image = NF_Environment.Draw()
     #node.image = np.zeros((200,200,3),dtype=np.uint8)
     #cv2.putText(node.image,"MONITOR",(10,120),cv2.FONT_HERSHEY_SIMPLEX, 4, (255,255,255) ,4)
@@ -119,7 +125,7 @@ class Environment():  #Template function
         args["Lightness"] = timedArg(lightness)
         return args
 
-def NF_SolarCell(args, node): #PIKATESTI...
+def NF_SolarCell(args, node, draw=False): #PIKATESTI...
     if "Lightness" in args:
         args["V_PV"] = timedArg(args["Lightness"][0])
     #if not "NF_Environment" in args:

@@ -132,15 +132,19 @@ class node():
         BBi[3] = int((BBi[3]-cent[1])*scale)
         return BBi
 
-    def update(self):
-        self.runCargoFun(self.cargo["Function"], self.cargo["Args"])
-        pass
+    def update(self,draw=False):
+        if "Function" in self.cargo:
+            self.runCargoFun(self.cargo["Function"], self.cargo["Args"],draw=draw)
+        
     
-    def runCargoFun(self,CargoFun,args):
+    def runCargoFun(self,CargoFun,args,draw=False):
         if CargoFun is not None:
-            self.cargo["Args"]= CargoFun((args), node = self)
+            self.cargo["Args"]= CargoFun((args), node = self,draw = draw)
 
     def drawNode(self,im, r=5, scale=1, cent=np.array([0,0]),label=False, logo=True):
+        #if "Function" in self.cargo:
+        #    self.runCargoFun(self.cargo["Function"], self.cargo["Args"],draw=True)
+
         x= int((self.x-cent[0])*scale)
         y= int((self.y-cent[1])*scale)
 
@@ -360,18 +364,21 @@ class edge():
         self.label = ""
         self.labelpos = 0
 
-    def update(self): #SIMPLE SWITCH FOR NOW... ei toimi useamman noden ryppäissä...
-        n1a = [None,0]
-        n2a = [None,0]
-        if self.label in self.node1.cargo["Args"]:
-            n1a=self.node1.cargo["Args"][self.label]
-        if self.label in self.node1.cargo["Args"]:
-            n2a=self.node2.cargo["Args"][self.label]
-        if n1a[1]>n2a[1]: n2a=n1a
-        else: n1a=n2a
+    def update(self,draw=False): #SIMPLE SWITCH FOR NOW... ei toimi useamman noden ryppäissä...
+        if ("Args" in self.node1.cargo) and ("Args" in self.node2.cargo):
+            
+            n1a = [None,0]
+            n2a = [None,0]
+            if self.label in self.node1.cargo["Args"]:
+                n1a=self.node1.cargo["Args"][self.label]
+            if self.label in self.node1.cargo["Args"]:
+                n2a=self.node2.cargo["Args"][self.label]
+            if (type(n2a) is list) & (type(n2a) is list):
+                if n1a[1]>n2a[1]: n2a=n1a
+                else: n1a=n2a
 
-        self.node1.cargo["Args"][self.label]=n2a
-        self.node2.cargo["Args"][self.label]=n1a
+            self.node1.cargo["Args"][self.label]=n2a
+            self.node2.cargo["Args"][self.label]=n1a
         
 
     def drawEdge(self,im,scale=1,cent=np.array([0,0]), label=False):
@@ -522,7 +529,9 @@ class graph():
     
         return nodes,logos,labels,edges,elabels,labelmap,rajat,aspectlock
 
-    def RunWithControlPanel(self):
+    def RunWithControlPanel(self, video = False):
+        if video: self.controlpanelflags["video"] = True
+        vid=False
         cv2.startWindowThread()
         cv2.namedWindow('Graafi')
         cv2.setMouseCallback('Graafi',self.mouseaction)
@@ -534,6 +543,19 @@ class graph():
                 if self.controlpanelflags["update"]:
                     self.UpdateAll()
             img = self.DrawGraph2(cp = True)#rajat=False, edges=True,labels=True, nodes =True, elabels=False, labelmap=True,logos=True)
+            if "video" in self.controlpanelflags:
+                if self.controlpanelflags["video"]:
+                    if not vid:
+                        writer = cv2.VideoWriter("output.avi", cv2.VideoWriter_fourcc(*"MJPG"), 30,(self.imgsize[1],self.imgsize[0])) 
+                        vid = True
+                    writer.write(img)
+                    cv2.circle(img,(20,20),10,(0,0,255), -1)
+                    cv2.putText(img,"REC",(35,25), cv2.FONT_HERSHEY_PLAIN,1.5,(255,255,255),2)
+                else:
+                    if vid:
+                        writer.release()
+                        vid = False
+
             cv2.imshow("Graafi",img)
             inp= cv2.waitKey(1)
             if inp==27:
@@ -543,7 +565,7 @@ class graph():
     
     
 
-    def RunThreaded(self,video=False):
+    def RunThreaded(self,video=False,updrounds=10):
         if video: self.controlpanelflags["video"] = True
         upd=False
         mov=False
@@ -551,14 +573,18 @@ class graph():
         cv2.startWindowThread()
         cv2.namedWindow('Graafi')
         cv2.setMouseCallback('Graafi',self.mouseaction)
+        self.UpdateAll()
         while True:
             
             if "update" in self.controlpanelflags:
                 if self.controlpanelflags["update"]:
                     if not upd:
-                        GRUpd=GRUpdateThread(1,self)
+                        GRUpd=GRUpdateThread(1,self,nrounds=updrounds)
                         GRUpd.start()
                         upd=True
+                    elif not GRUpd.isAlive():
+                        GRUpd=GRUpdateThread(1,self,nrounds=updrounds)
+                        GRUpd.start()                        
                 else: upd= False
                     
             if "move" in self.controlpanelflags:
@@ -807,11 +833,11 @@ class graph():
 
         return imgEdges, iens
 
-    def UpdateAll(self):
+    def UpdateAll(self,draw=False):
         for e in self.edges:
-            e.update()
+            e.update(draw=draw)
         for n in self.nodes:
-            n.update()
+            n.update(draw=draw)
     
 
     def MoveAll(self,  sc=1, scAuto=True):
@@ -876,7 +902,7 @@ class graph():
         #GR = param
         
         if event == cv2.EVENT_LBUTTONDOWN:
-            #print(event,flags)
+            
             if flags == 33 or flags == 32:
                 self.altLBUTTONDOWN(x,y)
             elif flags == 9:
@@ -899,7 +925,10 @@ class graph():
 
         if event == cv2.EVENT_MOUSEMOVE:
             self.MOUSEMOVE(x,y)
-        
+        #else:
+        #    print(event,flags)
+
+
     def altLBUTTONDOWN(self,x,y):
         found, n = self.NodeinXY(x,y)
         if found:
@@ -1005,15 +1034,21 @@ class graph():
 
 
 class GRUpdateThread(threading.Thread):
-    def __init__(self,threadID,GR,name="UpdateGR"):
+    def __init__(self,threadID,GR,name="UpdateGR",nrounds=None):
         threading.Thread.__init__(self)
         self.threadID = threadID
         self.name=name
         self.GR = GR
+        self.nrounds = nrounds
     
     def run(self):
-        print("starting upd")
+        rnd=0
         while True:
+            if self.nrounds is not None:
+                if rnd>self.nrounds:
+                    self.GR.UpdateAll(draw=True)
+                    return
+                rnd+=1
             if "update" in self.GR.controlpanelflags:
                 if self.GR.controlpanelflags["update"]:
                     self.GR.UpdateAll()
@@ -1192,7 +1227,7 @@ def GRfromDICT(GRAAFI,rx,ry, colorscheme = "BW", color = (128,100,100)):
 
 def Recolor(GR,colorscheme = "BW", color = (128,100,100),balance=0.66,branch=False):
     if colorscheme == "random":
-        schemes=["color","opposites","neighbour","neighbourrnd","oppositesrnd","triangle","colorrnd","BW","colorful"]
+        schemes=["color","opposites","neighbour","neighbourrnd","oppositesrnd","BWColor","triangle","colorrnd","BW","colorful"]
         colorscheme=schemes[np.random.randint(len(schemes))]
         color =(np.random.randint(255,dtype=int),np.random.randint(255,dtype=int),np.random.randint(255,dtype=int))
         balance=np.random.random()
@@ -1217,6 +1252,18 @@ def Recolor(GR,colorscheme = "BW", color = (128,100,100),balance=0.66,branch=Fal
             #cc=cc*cc*cc
             col = (int(c*col[0]+cc*255),int(c*col[1]+cc*255),int(c*col[2]+cc*255))
             n.color = col
+        if colorscheme == "BWColor":
+            if np.random.random()>balance:
+                col=np.random.random()
+                col=int(np.sqrt(np.sqrt(col))*255)
+                n.color=(col,col,col)
+            else:
+                col = color
+                c=np.random.random()
+                cc=np.random.random()*(1-c)
+                #cc=cc*cc*cc
+                col = (int(c*col[0]+cc*255),int(c*col[1]+cc*255),int(c*col[2]+cc*255))
+                n.color = col
         if colorscheme == "neighbour":
             col = np.array(color)
             cmx=max(col)
@@ -1330,12 +1377,14 @@ def colorBranches(GR,order=3, sat = 0.1, inv=True):
             c1=(c/2+c1/2)
             c2=(c/2+c2/2)
             if sat:
-                m1=max(max(c1),1)
-                c1=c1-min(c1)*sat
-                c1=c1/max(c1)*m1
-                m2=max(max(c2),1)
-                c2=c2-min(c2)*sat
-                c2=c2/max(c2)*m2
+                m1=max(c1)
+                if m1 >0:
+                    c1=c1-min(c1)*sat
+                    c1=c1/max(c1)*m1
+                m2=max(c2)
+                if m2>0:
+                    c2=c2-min(c2)*sat
+                    c2=c2/max(c2)*m2
 
             e.node1.color=(int(c1[0]),int(c1[1]), int(c1[2])  )
             e.node2.color=(int(c2[0]),int(c2[1]), int(c2[2])  )
