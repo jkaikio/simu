@@ -38,7 +38,7 @@ ARGS={
     "MainSwitch":["OnState_Main"],
     "SolarCell":["V_PV","P_PV_Out","Lightness"],
     "LongTermBattery":["E_Batt","V_Batt","P_Batt"],
-    "SuperCaps":["V_SC","E_SC","P_SC_Out","P_SC_In","P_SC_Out_Req"],
+    "SuperCaps":["V_SC","E_SC","P_SC_Out","P_SC_In","P_SC_Out_Req","V_PV"],
     "HarvesterCircuits":["OnState_Main","V_PV","P_PV_Out","E_Batt","V_Batt","P_Batt",\
                          "V_SC","E_SC","P_SC_Out","P_SC_Out_Req","P_SC_In","P_To_Reg",\
                          "V_To_Reg","TotalEnergy","PowerLowAlert","PowerShuttingDown"],
@@ -75,7 +75,7 @@ CARGOFUN={ #
     "MainSwitch":None,
     "SolarCell":NF_SolarCell,
     "LongTermBattery":None,
-    "SuperCaps":None,
+    "SuperCaps":NF_Supercap,
     "HarvesterCircuits":None,
     "VoltageRegulation":None,
     "PowerMonitor": NF_Monitor,

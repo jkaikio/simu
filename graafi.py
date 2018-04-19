@@ -141,6 +141,85 @@ class node():
         if CargoFun is not None:
             self.cargo["Args"]= CargoFun((args), node = self,draw = draw)
 
+    def writeArgs(self,im, scale=1, cent=np.array([0,0])):
+        x= int((self.x-cent[0])*scale)
+        y= int((self.y-cent[1])*scale)
+
+        txt=UIWrite(im,x,y)
+        if txt is None:
+            i=0
+            keys = list(self.cargo["Args"].keys())
+            print(keys)
+            while True:
+                if type(self.cargo["Args"][keys[i]])==list:
+                    txxt = keys[i]+"="+str(self.cargo["Args"][keys[i]][0])
+                else:
+                    txxt = keys[i]+"="+str(self.cargo["Args"][keys[i]])
+                txt = UIWrite(im,x,y,txt=txxt)
+                i+=1
+                if i>=len(keys):i=0
+                if txt is not None:
+                    break
+        if txt=="":
+            return
+        if "Args" in self.cargo:
+            i=txt.find("=")
+            j=txt.find(":")
+            if j != -1:
+                medium=txt[:j]
+                command=txt[j+1:]
+                print(self.label+":"+command)
+                if medium=="DEL":
+                    if command in self.cargo["Args"]:
+                        self.cargo["Args"].pop(command)
+                        print("Removed: "+command)
+                #if medium=="param":
+                #    k=command.find("=")
+                #    if k != -1:
+                #        parameter=command[:k]
+                #        value=command[k+1:]
+                #        try:
+                #            cparam(parameter,value)
+                #            print("Changed parameter:"+ parameter+" to value "+value)
+                #        except:
+                #            print("Exception: could not change parameter")
+
+                if command == "listArgs":
+                    print(self.cargo["Args"])
+                if (medium =="py") or (medium =="Py") or (medium=="PY"):
+                    k=command.find("(")
+                    if k!=-1:
+                        cfunct=command[:k]
+                        cargs=command[k:]
+                        crunpy(cfunct,cargs,self)
+            elif i != -1:
+                label=txt[:i]
+                value=txt[i+1:]
+                print(self.label+":")
+                if label in self.cargo["Args"]:
+                    
+                    vtype= type(self.cargo["Args"][label])
+                    if vtype==list:
+                        vtype=type(self.cargo["Args"][label][0])
+                    print(label,self.cargo["Args"][label],vtype)
+                    self.cargo["Args"][label]=timedArg(value, dtype=vtype)
+                    vtype= type(self.cargo["Args"][label])
+                    if vtype==list:
+                        vtype=type(self.cargo["Args"][label][0])
+                    print(label,self.cargo["Args"][label],vtype)
+                else:
+                    self.cargo["Args"][label]=timedArg(value)
+                    vtype= type(self.cargo["Args"][label])
+                    if vtype==list:
+                        vtype=type(self.cargo["Args"][label][0])
+                    print("NEW:",label,self.cargo["Args"][label],vtype)
+                           
+            else:
+                self.cargo["Args"]["Text"]=timedArg(txt) 
+                print("NEW Text:",self.cargo["Args"]["Text"])
+            
+
+
     def drawNode(self,im, r=5, scale=1, cent=np.array([0,0]),label=False, logo=True):
         #if "Function" in self.cargo:
         #    self.runCargoFun(self.cargo["Function"], self.cargo["Args"],draw=True)
@@ -641,7 +720,7 @@ class graph():
         if self.controlpanelflags["color"]:
             Recolor(self,colorscheme ="random")
             self.controlpanelflags["color"]=False
-
+        
         if "iszdx" in self.mousememory:
             dx = self.mousememory.pop("iszdx",None)
             if not self.controlpanelflags["video"]:
@@ -698,7 +777,11 @@ class graph():
                 if not rajat: n.tontinrajat=[]
                 n.drawNode(img,scale=sc, cent=c,label=labels,logo=logos)  
 
-        if cp: self.DrawControlPanel(img)      
+        if cp: self.DrawControlPanel(img)  
+
+        if "NodeWrite" in self.mousememory:
+            n= self.mousememory.pop("NodeWrite",None)
+            n.writeArgs(img,scale = sc, cent=c)
         
         if not self.controlpanelflags["video"]:
             x0 = (self.imgsize[1]-60, self.imgsize[0]-60)
@@ -905,6 +988,8 @@ class graph():
             
             if flags == 33 or flags == 32:
                 self.altLBUTTONDOWN(x,y)
+            if flags == 16 or flags == 17:
+                self.shiftLBUTTONDOWN(x,y)
             elif flags == 9:
                 self.LBUTTONDBLCLK(x,y)
             else:
@@ -969,7 +1054,12 @@ class graph():
         
         if found:
             n.maximized= not n.maximized
-    
+
+    def shiftLBUTTONDOWN(self,x,y):
+        found, n = self.NodeinXY(x,y)
+        
+        if found:
+            self.mousememory["NodeWrite"]=n
     
     def LBUTTONUP(self,x,y):
         if "imsize" in self.mousememory:
@@ -1079,6 +1169,60 @@ class GRMoveThread(threading.Thread):
                 print("Ending mov")  
                 return
 
+def UIWrite(im,x,y,txt=""):
+    pos=0
+    cursor="| "
+    marg=5
+    X=x
+    Y=y
+    while True:
+        x=X
+        y=Y
+        im2= im.copy()
+        t=int((time.time()*3)%2)
+        if pos==0:
+            txxt=txt+cursor[t]
+        else:
+            txxt=txt[:pos]+cursor[t]+txt[pos:]
+        
+        ts=cv2.getTextSize(txxt,cv2.FONT_HERSHEY_PLAIN,1.4,2)
+        if x+ts[0][0]+2*marg > len(im[0]):
+            x=len(im[0])-2*marg-ts[0][0]
+            while x<0:
+                txxt =txxt[:-1]
+                ts=cv2.getTextSize(txxt,cv2.FONT_HERSHEY_PLAIN,1.4,2)
+                x=len(im[0])-2*marg-ts[0][0]
+
+        imtxt=np.ones((ts[0][1]+2*marg,ts[0][0]+2*marg,3),dtype=np.uint8)*255
+
+        cv2.putText(imtxt,txxt,(0+marg,ts[0][1]+marg),cv2.FONT_HERSHEY_PLAIN,1.4,(0,0,0),2)
+        im2[y:y+ts[0][1]+2*marg,x:x+ts[0][0]+2*marg]=imtxt
+        cv2.imshow("Graafi",im2)
+        
+        inp = cv2.waitKey(1)
+        #if inp != -1: print(inp)
+        if inp==13:
+            break
+        if inp==27:
+            txt=""
+            break
+        if inp==127:
+            if pos == 0:
+                txt=txt[:-1]
+            else:
+                txt = txt[:pos-1]+txt[pos:]
+        if inp==1 or inp == 0:
+            return None
+        if inp==2: pos-=1
+        if inp==3: pos+=1
+        if -1*pos>len(txt): pos=0
+        if pos>0:pos=0
+        elif 31<inp<127:
+            if pos==0:
+                txt+=chr(inp)
+            else:
+                txt=txt[:pos]+chr(inp)+txt[pos:]
+    return txt
 
  
 
@@ -1425,8 +1569,32 @@ def createNODELIST(ANYLIST,NODELIST):
     for nn in NodeNames:
         NODELIST.update({nn:None})
 
-def timedArg( a ):
-    return [a,time.time()]
+def timedArg( a ,dtype="notSpecified"):
+    if dtype == str:
+        a=str(a)
+    elif dtype == int:
+        a=int(a)
+    elif dtype == float:
+        a=float(a)
+    elif dtype == bool:
+        a = a=="True"
+    elif str(dtype) == "<class 'NoneType'>":
+        a = None
+    elif dtype=="notSpecified":
+        pass
+    else:
+        try:
+            a=eval(a)
+        except:
+            print("Exception: timedArg: Argument data type not known")
+            print("Argument: "+str(a))
+    return [a,time.time()]   
+
+def crunpy(f,argstring,self):
+    #a=argstring[1:-1]
+    eval(f+argstring)
+#def cparam(parameter,value,self):
+#    eval(parameter)#=eval(value)
 
 ''' EXAMPLE OF IMAGES, KEYWDS, ALTKEYWDS
 IMAGES={

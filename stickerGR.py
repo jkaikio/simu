@@ -36,14 +36,14 @@ IMAGES={
 ARGS={
     #Power block
     "MainSwitch":["OnState_Main"],
-    "SolarCell":["V_PV","P_PV_Out","Lightness"],
-    "LongTermBattery":["E_Batt","V_Batt","P_Batt"],
-    "SuperCaps":["V_SC","E_SC","P_SC_Out","P_SC_In","P_SC_Out_Req"],
+    "SolarCell":["V_PV","P_PV_Out","Lightness","P_Tot_Out"],
+    "LongTermBattery":["E_Batt","V_Batt","P_Batt","P_Tot_Out","E_SC"],
+    "SuperCaps":["V_SC","E_SC","P_SC_Out","P_SC_In","P_SC_Out_Req","V_PV"],
     "HarvesterCircuits":["OnState_Main","V_PV","P_PV_Out","E_Batt","V_Batt","P_Batt",\
                          "V_SC","E_SC","P_SC_Out","P_SC_Out_Req","P_SC_In","P_To_Reg",\
                          "V_To_Reg","TotalEnergy","PowerLowAlert","PowerShuttingDown"],
     "VoltageRegulation":["P_To_Reg","V_To_Reg","P_Tot_Out","V_Tot_Out"],
-    "PowerMonitor": ["V_PV","E_SC","Lightness"],
+    "PowerMonitor": ["V_PV","E_SC","E_Batt"],
     
     #Logics block
     "Microcontroller":["TotalEnergy","PowerLowAlert","PowerShuttingDown","P_Tot_Out",\
@@ -74,8 +74,8 @@ CARGOFUN={ #
     #Power block
     "MainSwitch":None,
     "SolarCell":NF_SolarCell,
-    "LongTermBattery":None,
-    "SuperCaps":None,
+    "LongTermBattery":NF_Batt,
+    "SuperCaps":NF_Supercap,
     "HarvesterCircuits":None,
     "VoltageRegulation":None,
     "PowerMonitor": NF_Monitor,
@@ -102,7 +102,7 @@ CARGOFUN={ #
 }
 
 ARGVALUES={'Data_Sensors': None,
- 'E_Batt': 1.0,
+ 'E_Batt': 5000.0,
  'E_SC': 0.0,
  'Lightness': 0.0,
  'Message_From_Antenna': "",
@@ -124,7 +124,7 @@ ARGVALUES={'Data_Sensors': None,
  'P_SC_Out_Req': 0.0,
  'P_Sensors': 0.0,
  'P_To_Reg': 0.0,
- 'P_Tot_Out': 0.0,
+ 'P_Tot_Out': 0.02,
  'P_indicator': 0.0,
  'PositioningAntenna': None,
  'PositioningRadio': None,
