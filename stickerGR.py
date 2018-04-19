@@ -36,9 +36,9 @@ IMAGES={
 ARGS={
     #Power block
     "MainSwitch":["OnState_Main"],
-    "SolarCell":["V_PV","P_PV_Out","Lightness","P_Tot_Out"],
-    "LongTermBattery":["E_Batt","V_Batt","P_Batt","P_Tot_Out","E_SC"],
-    "SuperCaps":["V_SC","E_SC","P_SC_Out","P_SC_In","P_SC_Out_Req","V_PV"],
+    "SolarCell":["V_PV","P_PV_Out","Lightness"],
+    "LongTermBattery":["E_Batt","V_Batt","P_Batt"],
+    "SuperCaps":["V_SC","E_SC","P_SC_Out","P_SC_In","P_SC_Out_Req"],
     "HarvesterCircuits":["OnState_Main","V_PV","P_PV_Out","E_Batt","V_Batt","P_Batt",\
                          "V_SC","E_SC","P_SC_Out","P_SC_Out_Req","P_SC_In","P_To_Reg",\
                          "V_To_Reg","TotalEnergy","PowerLowAlert","PowerShuttingDown"],
@@ -76,12 +76,12 @@ CARGOFUN={ #
     "SolarCell":NF_SolarCell,
     "LongTermBattery":NF_Batt,
     "SuperCaps":NF_Supercap,
-    "HarvesterCircuits":None,
-    "VoltageRegulation":None,
+    "HarvesterCircuits":NF_EHarvester,
+    "VoltageRegulation":NF_VRegulator,
     "PowerMonitor": NF_Monitor,
     
     #Logics block
-    "Microcontroller":NF_Monitor,
+    "Microcontroller":NF_Microcontroller,
     "Sensors":NF_Monitor,
     "Indicator":None,
     
@@ -110,7 +110,7 @@ ARGVALUES={'Data_Sensors': None,
  'Message_To_Antenna': "",
  'Message_To_Gateway': "",
  'NFC': None,
- 'OnState_Main': False,
+ 'OnState_Main': True,
  'OnState_Radio': False,
  'OnState_Sensors': False,
  'OnState_indicator': False,

@@ -1199,22 +1199,22 @@ def UIWrite(im,x,y,txt=""):
         im2[y:y+ts[0][1]+2*marg,x:x+ts[0][0]+2*marg]=imtxt
         cv2.imshow("Graafi",im2)
         
-        inp = cv2.waitKey(1)
+        inp = cv2.waitKeyEx(1)
         #if inp != -1: print(inp)
         if inp==13:
             break
         if inp==27:
             txt=""
             break
-        if inp==127:
+        if inp==127 or inp == 8:
             if pos == 0:
                 txt=txt[:-1]
             else:
                 txt = txt[:pos-1]+txt[pos:]
-        if inp==1 or inp == 0:
+        if inp==2490368 or inp == 2621440:
             return None
-        if inp==2: pos-=1
-        if inp==3: pos+=1
+        if inp==2424832: pos-=1
+        if inp==2555904: pos+=1
         if -1*pos>len(txt): pos=0
         if pos>0:pos=0
         elif 31<inp<127:
