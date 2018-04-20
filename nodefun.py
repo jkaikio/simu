@@ -31,6 +31,7 @@ def NF_Monitor(args, node, draw=False):
         NFMonitor.sourcelabels = list(args.keys())
         args["NF_Monitor"]=NFMonitor
         args["M_reset"]=timedArg(False)
+        node.mximsize=0.6
     NFMonitor=args["NF_Monitor"]
     if draw:
         node.image = NFMonitor.Draw()
@@ -129,6 +130,7 @@ def NF_Environment(args, node, draw=False):
         NFEnvironment = Environment(label = node.label)
         ##NF_Environment.sourcelabels = list(args.keys())
         args["NF_Environment"]=NFEnvironment
+        node.mximsize=0.2
     NFEnvironment=args["NF_Environment"]
     if draw:
         node.image= NFEnvironment.Draw()
@@ -181,12 +183,12 @@ class Environment():  #Template function
         return args
 
     def Draw(self):
-        im=np.ones((150,250,3),dtype=np.uint8)
+        im=np.ones((120,230,3),dtype=np.uint8)
         im[:,:,0]=self.bgcolor[0]
         im[:,:,1]=self.bgcolor[1]
         im[:,:,2]=self.bgcolor[2]
-        cv2.putText(im,self.date,(5,50),cv2.FONT_HERSHEY_SIMPLEX,1.2,(255,255,255),3)
-        cv2.putText(im,self.clock,(5,100),cv2.FONT_HERSHEY_SIMPLEX,1.2,(255,255,255),3)
+        cv2.putText(im,self.date,(5,50),cv2.FONT_HERSHEY_SIMPLEX,1.2,(255,255,255),4)
+        cv2.putText(im,self.clock,(5,100),cv2.FONT_HERSHEY_SIMPLEX,1.2,(255,255,255),4)
         cv2.putText(im,self.date,(5,50),cv2.FONT_HERSHEY_SIMPLEX,1.2,(0,0,0),2)
         cv2.putText(im,self.clock,(5,100),cv2.FONT_HERSHEY_SIMPLEX,1.2,(0,0,0),2)
         return im
@@ -260,32 +262,45 @@ def NF_EHarvester(args, node, draw=False):
     P_SC_In      = readFloatArg("P_SC_In",args)
     P_To_Reg     = readFloatArg("P_To_Reg",args)
     V_To_Reg     = readFloatArg("V_To_Reg",args)
+    P_Tot_Out     = readFloatArg("P_Tot_Out",args)
+    V_Tot_Out     = readFloatArg("V_Tot_Out",args)
     TotalEnergy  = readFloatArg("TotalEnergy",args)
     PowerLowAlert = readBoolArg("PowerLowAlert",args)
     PowerShuttingDown = readBoolArg("PowerShuttingDown",args)
 
     dt=60
 
-    if OnState_Main:
+    OnState_EHarvester = (E_Batt+E_SC)>0 
+
+    if (V_PV>0) and (not OnState_EHarvester): #(PV only)
+        P_SC_In = V_PV*.01 #tähän virta...
+
+
+    if OnState_Main and OnState_EHarvester:
         P_SC_In = V_PV*.015 #tähän virta...
 
+        P_Batt=0.0
+        P_SC_Out=0.0
+        P_self=0.005
 
-        P_rem=P_To_Reg
+        P_rem = P_To_Reg + P_self #Harvesterin viemä virta...??
         P_SC_Max=0.07
         if E_SC>0:
-            P_SC_Out=min(P_To_Reg,P_SC_Max)
-            P_rem = min(E_SC/dt-P_SC_Out,0)
+            P_SC_Out=min(P_rem, P_SC_Max, E_SC/dt)
+            P_SC_Out = max(P_SC_Out,0)
+            P_rem = P_To_Reg - P_SC_Out
         P_Batt_Max=0.03            
         if E_Batt>0:
-            P_Batt = min(P_rem, P_Batt_Max)
-            #E_rem = E_Batt+P_rem*dt
+            P_Batt = min(P_rem, P_Batt_Max,E_Batt/dt)
+            P_Batt = max(P_Batt,0)
+            P_rem = P_rem - P_Batt
         
         V_To_Reg = 3.0
         if 0 < P_To_Reg < P_Batt + P_SC_Out:
             V_To_Reg = V_To_Reg * (P_Batt + P_SC_Out)/P_To_Reg
-        P_To_Reg = P_Batt + P_SC_Out 
+        P_To_Reg = P_Batt + P_SC_Out -P_self
 
-        TotalEnergy = E_SC + E_Batt - P_To_Reg*dt
+        TotalEnergy = E_SC + E_Batt - P_To_Reg * dt
         Emax=1000
         if E_SC < 0.2*Emax:
             PowerLowAlert=True
@@ -296,10 +311,11 @@ def NF_EHarvester(args, node, draw=False):
         else:
             PowerShuttingDown = False
 
-    if (not OnState_Main) or PowerShuttingDown:
-        P_To_Reg =0
-        P_SC_Out =0
-        P_Batt =0
+    if (not OnState_Main) or (not OnState_EHarvester):
+        TotalEnergy= E_SC + E_Batt
+        P_To_Reg =0.0
+        P_SC_Out =0.0
+        P_Batt =0.0
         pass    
 
     #args["OnState_Main"]= timedArg(OnState_Main)
@@ -313,28 +329,29 @@ def NF_EHarvester(args, node, draw=False):
     args["P_SC_Out"]= timedArg(P_SC_Out)
     #args["P_SC_Out_Req"]= timedArg(P_SC_Out_Req)
     args["P_SC_In"]= timedArg(P_SC_In)
-    args["P_To_Reg"]= timedArg(P_To_Reg)
-    args["V_To_Reg"]= timedArg(V_To_Reg)
+    args["P_Tot_Out"]= timedArg(P_To_Reg)
+    args["V_Tot_Out"]= timedArg(V_To_Reg)
     args["TotalEnergy"]= timedArg(TotalEnergy)
     args["PowerLowAlert"]= timedArg(PowerLowAlert)
     args["PowerShuttingDown"]= timedArg(PowerShuttingDown)
     return args
 
 def NF_VRegulator(args, node, draw=False):
-    P_Temp     = readFloatArg("P_To_Reg",args)
-    V_Temp     = readFloatArg("V_To_Reg",args)
-    P_Tot_Out     = readFloatArg("P_Tot_Out",args)
-    V_Tot_Out     = readFloatArg("V_Tot_Out",args)
     
-    V_To_Reg = V_Tot_Out
-    P_To_Reg = P_Tot_Out
-    V_Tot_Out = V_Temp
-    P_Tot_Out = P_Temp
+    #P_To_Reg     = readFloatArg("P_To_Reg",args)
+    #V_To_Reg     = readFloatArg("V_To_Reg",args)
+    #P_Tot_Out     = readFloatArg("P_Tot_Out",args)
+    #V_Tot_Out     = readFloatArg("V_Tot_Out",args)
+    
+    #V_To_Reg = V_Tot_Out
+    #P_To_Reg = P_Tot_Out
+    #V_Tot_Out = V_Temp
+    #P_Tot_Out = P_Temp
 
-    args["P_To_Reg"]= timedArg(P_To_Reg)
-    args["V_To_Reg"]= timedArg(V_To_Reg)
-    args["P_Tot_Out"]= timedArg(P_Tot_Out)
-    args["V_Tot_Out"]= timedArg(V_Tot_Out)
+    #args["P_To_Reg"]= timedArg(P_To_Reg)
+    #args["V_To_Reg"]= timedArg(V_To_Reg)
+    #args["P_Tot_Out"]= timedArg(P_Tot_Out)
+    #args["V_Tot_Out"]= timedArg(V_Tot_Out)
     return args
 
 #    "Microcontroller":["TotalEnergy","PowerLowAlert","PowerShuttingDown","P_Tot_Out",\
@@ -348,6 +365,7 @@ def NF_Microcontroller(args, node, draw=False):
         NFMicrocontroller = Microcontroller(label = node.label)
         #NFMicrocontroller.sourcelabels = list(args.keys())
         args["NF_Microcontroller"]=NFMicrocontroller
+        node.mximsize=0.2
         #args["M_reset"]=timedArg(False)
     NFMicrocontroller=args["NF_Microcontroller"]
     if draw:
@@ -364,7 +382,7 @@ class Microcontroller():  #Template function
         self.parent = None
         self.time = 0.0
         self.deltatime=60.0 #sekunteina 
-        self.bgcolor = (50,20,5)
+        self.bgcolor = (200,200,180)
         self.mode="off" #off, shutdown, deepsleep, sleep, energysaving, booting, on
         self.P={"off":0.0,"shutdown":0.005,"deepsleep":0.003,"wakingfromdeepsleep":0.01,\
                 "sleep":0.007,"wakingfromsleep":0.01,"energysaving":0.01,"booting":0.01,"ON":0.02} 
@@ -384,19 +402,21 @@ class Microcontroller():  #Template function
             self.mode="off"
 
         if self.mode=="off":
-            if P_Tot_Out >= self.P["booting"]:
+            P_Tot_Out=self.P["off"]
+            if not PowerShuttingDown:
                 self.mode="booting"
-            P_Tot_Out=self.P["booting"]
+                P_Tot_Out=self.P["booting"]
+            
         
-        if self.mode=="shutdown":
+        elif self.mode=="shutdown":
             P_Tot_Out=self.P["shutdown"]
             self.mode="off"
         
-        if self.mode=="booting":
+        elif self.mode=="booting":
             P_Tot_Out=self.P["booting"]
             self.mode="ON"
 
-        if self.mode=="ON":
+        elif self.mode=="ON":
             P_Tot_Out=self.P["ON"]
             if PowerLowAlert:
                 self.mode="energysaving"
@@ -405,19 +425,26 @@ class Microcontroller():  #Template function
                 self.mode="shutdown"
                 P_Tot_Out= self.P["shutdown"]  
 
-        if self.mode=="energysaving":
+        elif self.mode=="energysaving":
             if not PowerLowAlert:
                 self.mode="ON" 
             P_Tot_Out= self.P["energysaving"]
+            if PowerShuttingDown:
+                self.mode="shutdown"
+                P_Tot_Out= self.P["shutdown"]  
 
         args["MC_mode"]= timedArg(self.mode)
-        args["P_Tot_Out"]= timedArg(P_Tot_Out)
-        args["V_Tot_Out"]= timedArg(V_Tot_Out)
+        args["P_To_Reg"]= timedArg(P_Tot_Out)
+        args["V_To_Reg"]= timedArg(V_Tot_Out)
         return args
 
     def Draw(self):
-        im=np.ones((150,150,3),dtype=np.uint8)*244
-        cv2.putText(im,self.mode,(5,75),cv2.FONT_HERSHEY_SIMPLEX,2,(0,0,0),2)
+        im=np.ones((100,300,3),dtype=np.uint8)
+        im[:,:,0]=self.bgcolor[0]
+        im[:,:,1]=self.bgcolor[1]
+        im[:,:,2]=self.bgcolor[2]
+        cv2.putText(im,self.mode,(5,70),cv2.FONT_HERSHEY_SIMPLEX,1.2,(255,255,255),4)
+        cv2.putText(im,self.mode,(5,70),cv2.FONT_HERSHEY_SIMPLEX,1.2,(0,0,0),2)
         return im
 
 

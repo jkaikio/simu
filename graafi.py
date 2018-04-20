@@ -105,6 +105,7 @@ class node():
         self.label = ""
         self.size =20
         self.fixed = False
+        self.mximsize=1.0
 
     def BoundingBoxSet(self):
         BB=np.array([999999999,-999999999,999999999,-999999999])
@@ -173,6 +174,15 @@ class node():
                     if command in self.cargo["Args"]:
                         self.cargo["Args"].pop(command)
                         print("Removed: "+command)
+                if medium=="size" or medium == "Size":
+                    try:
+                        ss=float(command)
+                    except:
+                        print("Exception: could not set size")
+                        ss=self.mximsize    
+                    if ss>1.5: ss=1.5
+                    if ss<0.1: ss=0.1
+                    self.mximsize=ss
                 #if medium=="param":
                 #    k=command.find("=")
                 #    if k != -1:
@@ -265,7 +275,7 @@ class node():
             #    img[X1:X1+l,X0:X0+w] = addedimage
             #    cv2.rectangle(img, (X0,X1),(X0+w,X1+l),self.color,2)
         if self.maximized and (self.image is not None):
-            size=(int(len(im[0])/2),int(len(im)/2))
+            size=(int(len(im[0])/2*self.mximsize),int(len(im)/2*self.mximsize))
             scy=size[0]/(len(self.image[0]))
             scx=size[1]/(len(self.image))
             sca=min(scx,scy)
@@ -1211,10 +1221,10 @@ def UIWrite(im,x,y,txt=""):
                 txt=txt[:-1]
             else:
                 txt = txt[:pos-1]+txt[pos:]
-        if inp==2490368 or inp == 2621440:
+        if inp==2490368 or inp == 2621440 or inp == 63232 or inp ==63233:
             return None
-        if inp==2424832: pos-=1
-        if inp==2555904: pos+=1
+        if inp==2424832 or inp==63234: pos-=1
+        if inp==2555904 or inp==63235: pos+=1
         if -1*pos>len(txt): pos=0
         if pos>0:pos=0
         elif 31<inp<127:

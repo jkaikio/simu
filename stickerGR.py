@@ -14,6 +14,7 @@ IMAGES={
     "Microcontroller":None,
     "Sensors":None,
     "Indicator":None,
+    "LogicPMonitor":None,
     
     #Radio block
     "CommunicationRadio":None,
@@ -41,17 +42,18 @@ ARGS={
     "SuperCaps":["V_SC","E_SC","P_SC_Out","P_SC_In","P_SC_Out_Req"],
     "HarvesterCircuits":["OnState_Main","V_PV","P_PV_Out","E_Batt","V_Batt","P_Batt",\
                          "V_SC","E_SC","P_SC_Out","P_SC_Out_Req","P_SC_In","P_To_Reg",\
-                         "V_To_Reg","TotalEnergy","PowerLowAlert","PowerShuttingDown"],
+                         "V_To_Reg","P_Tot_Out","V_Tot_Out", "TotalEnergy","PowerLowAlert","PowerShuttingDown"],
     "VoltageRegulation":["P_To_Reg","V_To_Reg","P_Tot_Out","V_Tot_Out"],
     "PowerMonitor": ["V_PV","E_SC","E_Batt"],
     
     #Logics block
     "Microcontroller":["TotalEnergy","PowerLowAlert","PowerShuttingDown","P_Tot_Out",\
-                       "V_Tot_Out","P_Sensors","Data_Sensors","OnState_Sensors",\
+                       "V_Tot_Out","P_To_Reg","V_To_Reg","P_Sensors","Data_Sensors","OnState_Sensors",\
                        "P_Indicator","OnState_indicator","OnState_Radio","PositioningRadio",\
                        "RadioMessagePush","RadioMessagePull","NFC"],
     "Sensors":["P_Sensors","Data_Sensors","OnState_Sensors"],
     "Indicator":["P_indicator","OnState_indicator"],
+    "LogicPMonitor": ["P_Tot_Out","P_To_Reg","TotalEnergy"],
     
     #Radio block
     "CommunicationRadio":["OnState_Radio","RadioMessagePush","RadioMessagePull",\
@@ -82,8 +84,9 @@ CARGOFUN={ #
     
     #Logics block
     "Microcontroller":NF_Microcontroller,
-    "Sensors":NF_Monitor,
+    "Sensors":None,
     "Indicator":None,
+    "LogicPMonitor":NF_Monitor,
     
     #Radio block
     "CommunicationRadio":None,
