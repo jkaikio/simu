@@ -23,7 +23,8 @@ def readStrArg(label,args,ifnotvalue=""):
     if label in args:
         variable = str(args[label][0])
     else: variable=ifnotvalue
-    return variable    
+    return variable   
+
 
 def NF_Monitor(args, node, draw=False):
     if not "NF_Monitor" in args:
@@ -36,6 +37,7 @@ def NF_Monitor(args, node, draw=False):
     if draw:
         node.image = NFMonitor.Draw()
         return args
+    NFMonitor.bgcolor=node.color
     NFMonitor.update(args)
     
     #node.image = np.zeros((200,200,3),dtype=np.uint8)
@@ -70,8 +72,6 @@ class Monitor():  #Template function
          
         data=[]
         for l in self.sourcelabels:
-            #if (type(args[l]) != bool) and (args[l] is not None)and (type(args[l]) != str):
-            #    args[l]=args[l]+np.random.random()-0.5  ##TOIMIIKO??
             data.append(args[l][0])
         self.MonitorData.append(data)
         if "M_nth" in args:
@@ -81,6 +81,7 @@ class Monitor():  #Template function
         return args
 
     def Draw(self):
+        col=np.array(self.bgcolor,dtype=np.uint8)
         data=np.array(self.MonitorData)
         if self.ave>1:
             Vconv=np.ones(self.ave,dtype=float)/self.ave
@@ -111,14 +112,17 @@ class Monitor():  #Template function
         img[:,:,1]=self.bgcolor[1]
         img[:,:,2]=self.bgcolor[2]
 
-        cv2.line(img,(0,int(self.h/2)),(self.w,int(self.h/2)),(100,40,10),2,cv2.LINE_AA)
+        cv2.line(img,(0,int(self.h/2)),(self.w,int(self.h/2)),colorblend(col,col+128,0.3),2,cv2.LINE_AA)
 
         for j in range(ld):
             #for i
             #cv2.polylines(img, np.int32([points]), 1, (255,255,255))
             if (type(data[0,j]) != bool) and (data[0,j] is not None)and (type(data[0,j]) != str):
                 for i in range(len(data)-1): 
-                    color= (int(215+40*np.sin(6.0*j/ld)),int(191+64*np.cos(6.0*j/ld)),int(191+64*np.cos(6.0*j/ld)))      
+                    color= np.array((int(32*np.sin(8.0*j/(ld+1))),int(32*np.sin(8.0*j/(ld+1))),int(32*np.cos(8.0*j/(ld+1)))),dtype=np.uint8)
+                    #color=np.array(color/max(color)*128,dtype=np.uint8)
+                    color=col+color+128
+                    color=colorblend(color,col,0.2)      
                     cv2.line(img,(i,int(data[i,j])),(i+1,int(data[i+1,j])),color,1,cv2.LINE_AA)
                     cv2.putText(img,str(np.round(mnd[j],2))+" < " + self.sourcelabels[j] + " < "+str(np.round(mxd[j],2)),\
                         (10,20+j*30),\
@@ -134,9 +138,8 @@ def NF_Environment(args, node, draw=False):
     NFEnvironment=args["NF_Environment"]
     if draw:
         node.image= NFEnvironment.Draw()
-        node.color = NFEnvironment.bgcolor 
         return args   
-    args = NFEnvironment.update(args)
+    args = NFEnvironment.update(args,node)
 
     #node.image = NF_Environment.Draw()
     #node.image = np.zeros((200,200,3),dtype=np.uint8)
@@ -157,7 +160,7 @@ class Environment():  #Template function
         self.date=""
         self.clock=""
 
-    def update(self, args):
+    def update(self, args, node):
         if "Time" in args:
             self.time=float(args["Time"][0])
         self.time+=self.deltatime #vaihdetaan logiikan pyytämään aikahyppyyn myöhemmin
@@ -173,10 +176,13 @@ class Environment():  #Template function
         self.date=dt[:6]
         self.clock=dt[7:]
         self.date=self.date+" y:"+str(int(year))
-        lightness = max((-1*np.cos(hour_of_day/24*2*np.pi)+\
-                        0.5*np.cos(day_of_year/365*2*np.pi))+\
-                        np.average(np.random.random(5)-0.3),0)
+        #lightness = max((-1*np.cos(hour_of_day/24*2*np.pi)+\
+        #                0.5*np.cos(day_of_year/365*2*np.pi))+\
+        #                np.average(np.random.random(5)-0.3),0)
+        sunh = AuKorkeus(day_of_year+172,hour_of_day,leveyspiiri=65) #Oulu!!!
+        lightness = sd=sigmoid((sunh-7)/2)
         self.bgcolor=tuple([min(k*lightness*255,255)for k in [.8,1,1.3]])
+        self.bgcolor = colorblend(node.color, self.bgcolor, 0.4)
         args["Lightness"] = timedArg(lightness)
         if "Time" in args:
             args["Time"] = timedArg(self.time)
@@ -187,13 +193,26 @@ class Environment():  #Template function
         im[:,:,0]=self.bgcolor[0]
         im[:,:,1]=self.bgcolor[1]
         im[:,:,2]=self.bgcolor[2]
-        cv2.putText(im,self.date,(5,50),cv2.FONT_HERSHEY_SIMPLEX,1.2,(255,255,255),4)
-        cv2.putText(im,self.clock,(5,100),cv2.FONT_HERSHEY_SIMPLEX,1.2,(255,255,255),4)
-        cv2.putText(im,self.date,(5,50),cv2.FONT_HERSHEY_SIMPLEX,1.2,(0,0,0),2)
-        cv2.putText(im,self.clock,(5,100),cv2.FONT_HERSHEY_SIMPLEX,1.2,(0,0,0),2)
+        col=np.array(self.bgcolor,dtype=np.uint8)
+        color=colorblend(col,col+128,0.4)
+        cv2.putText(im,self.date,(5,50),cv2.FONT_HERSHEY_SIMPLEX,1.2,color,3)
+        cv2.putText(im,self.clock,(5,100),cv2.FONT_HERSHEY_SIMPLEX,1.2,color,3)
+        #cv2.putText(im,self.date,(5,50),cv2.FONT_HERSHEY_SIMPLEX,1.2,(255,255,255),4)
+        #cv2.putText(im,self.clock,(5,100),cv2.FONT_HERSHEY_SIMPLEX,1.2,(255,255,255),4)
+        #cv2.putText(im,self.date,(5,50),cv2.FONT_HERSHEY_SIMPLEX,1.2,(0,0,0),2)
+        #cv2.putText(im,self.clock,(5,100),cv2.FONT_HERSHEY_SIMPLEX,1.2,(0,0,0),2)
         return im
 
-    
+def AuKorkeus(vuodenpaiva,kellonaika,leveyspiiri=65):
+        fLeveyspiiri=float(leveyspiiri)
+        fAkselinkallistus=23.43
+        fAkselinkallistus_Nyt=np.cos(float(vuodenpaiva+10)/365*2*np.pi)*fAkselinkallistus
+        fSunHeigth=-np.cos(float(kellonaika)/24*np.pi*2)*(90-fLeveyspiiri)-fAkselinkallistus_Nyt
+        P=950
+        T=0        
+        sh=fSunHeigth
+        fSunHeigth=sh+P/(273+T)*(0.1594+0.0196*sh+0.00002*sh*sh)/(1+0.505*sh+0.0845*sh*sh) #Ilmakeh�n refraktio
+        return fSunHeigth    
 
 def NF_SolarCell(args, node, draw=False): 
     Lightness = readFloatArg("Lightness",args)
@@ -205,17 +224,40 @@ def NF_SolarCell(args, node, draw=False):
     #print("SolarCell",Lightness,V_PV)
     return args
 
-#def NF_MainSwitch(args, node): #PIKATESTI...
-#    if "OnStata_Main" in args:
-#        args["V_PV"] = timedArg(args["Lightness"][0])
-    #if not "NF_Environment" in args:
-    #    NFEnvironment = Environment(label = node.label)
-    #    ##NF_Environment.sourcelabels = list(args.keys())
-    #    args["NF_Environment"]=NFEnvironment
-    #NFEnvironment=args["NF_Environment"]
-    #args = NFEnvironment.update(args)
-    #node.color = NFEnvironment.bgcolor
-#    return args
+def switchimage(bgcolor,onstate):
+    img=cv2.imread("onoff2.png")
+    im=np.ones((428,428,3),dtype=np.uint8)
+    
+    im[:,:,0]=bgcolor[0]
+    im[:,:,1]=bgcolor[1]
+    im[:,:,2]=bgcolor[2]
+    imB=im[107-22:107-22+236,107:107+214,0]
+    imG=im[107-22:107-22+236,107:107+214,1]
+    imR=im[107-22:107-22+236,107:107+214,2]
+    B=img[:,:,1].copy()
+    
+    if onstate:
+        swcol=colorblend(bgcolor,(0,255,0),0.3)
+    else:
+        swcol=colorblend(bgcolor,(0,0,255),0.3)
+    imB[B<200]=swcol[0]
+    imG[B<200]=swcol[1]
+    imR[B<200]=swcol[2]    
+    im[107-22:107-22+236,107:107+214, 0]=imB.copy()
+    im[107-22:107-22+236,107:107+214, 1]=imG.copy()
+    im[107-22:107-22+236,107:107+214, 2]=imR.copy()
+    return im
+
+
+def NF_MainSwitch(args, node, draw=False):
+    if draw:
+        node.image=switchimage(node.color,readBoolArg("OnState_Main",args))
+        return args
+    if node.maximized:
+        OnState_Main = readBoolArg("OnState_Main",args)
+        args["OnState_Main"]= timedArg(not OnState_Main)
+        node.maximized=False
+    return args
 
 def NF_Supercap(args, node, draw=False): #PIKATESTI...
     V_SC         = readFloatArg("V_SC",args)
@@ -272,7 +314,7 @@ def NF_EHarvester(args, node, draw=False):
 
     OnState_EHarvester = (E_Batt+E_SC)>0 
 
-    if (V_PV>0) and (not OnState_EHarvester): #(PV only)
+    if (V_PV>0) and (not OnState_EHarvester) and OnState_Main: #(PV only)
         P_SC_In = V_PV*.01 #tähän virta...
 
 
@@ -316,7 +358,10 @@ def NF_EHarvester(args, node, draw=False):
         P_To_Reg =0.0
         P_SC_Out =0.0
         P_Batt =0.0
-        pass    
+        PowerShuttingDown = True
+
+    if not OnState_Main:
+        P_SC_In =0.0
 
     #args["OnState_Main"]= timedArg(OnState_Main)
     #args["V_PV"]= timedArg(V_PV)
@@ -396,6 +441,7 @@ class Microcontroller():  #Template function
         PowerShuttingDown = readBoolArg("PowerShuttingDown",args)
         self.mode     = readStrArg("MC_mode",args,"off")
         
+        self.bgcolor=node.color
         self.time+=self.deltatime #vaihdetaan logiikan pyytämään aikahyppyyn myöhemmin
 
         if P_Tot_Out <= 0:
@@ -443,8 +489,11 @@ class Microcontroller():  #Template function
         im[:,:,0]=self.bgcolor[0]
         im[:,:,1]=self.bgcolor[1]
         im[:,:,2]=self.bgcolor[2]
-        cv2.putText(im,self.mode,(5,70),cv2.FONT_HERSHEY_SIMPLEX,1.2,(255,255,255),4)
-        cv2.putText(im,self.mode,(5,70),cv2.FONT_HERSHEY_SIMPLEX,1.2,(0,0,0),2)
+        col=np.array(self.bgcolor,dtype=np.uint8)
+        color=colorblend(col,col+128,0.6)
+ 
+        cv2.putText(im,self.mode,(5,70),cv2.FONT_HERSHEY_SIMPLEX,1.2,color,3)
+        #cv2.putText(im,self.mode,(5,70),cv2.FONT_HERSHEY_SIMPLEX,1.2,(0,0,0),2)
         return im
 
 

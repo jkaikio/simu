@@ -2,7 +2,7 @@ from nodefun import *
 
 IMAGES={
     #Power block
-    "MainSwitch":"onoff.jpg",
+    "MainSwitch":"onoff2.png",
     "SolarCell":None,
     "LongTermBattery":None,
     "SuperCaps":None,
@@ -74,7 +74,7 @@ ARGS={
 
 CARGOFUN={ #
     #Power block
-    "MainSwitch":None,
+    "MainSwitch":NF_MainSwitch,
     "SolarCell":NF_SolarCell,
     "LongTermBattery":NF_Batt,
     "SuperCaps":NF_Supercap,

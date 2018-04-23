@@ -106,6 +106,7 @@ class node():
         self.size =20
         self.fixed = False
         self.mximsize=1.0
+        self.message=""
 
     def BoundingBoxSet(self):
         BB=np.array([999999999,-999999999,999999999,-999999999])
@@ -146,7 +147,7 @@ class node():
         x= int((self.x-cent[0])*scale)
         y= int((self.y-cent[1])*scale)
 
-        txt=UIWrite(im,x,y)
+        txt=UIWrite(im,x,y,color=self.color)
         if txt is None:
             i=0
             keys = list(self.cargo["Args"].keys())
@@ -156,7 +157,7 @@ class node():
                     txxt = keys[i]+"="+str(self.cargo["Args"][keys[i]][0])
                 else:
                     txxt = keys[i]+"="+str(self.cargo["Args"][keys[i]])
-                txt = UIWrite(im,x,y,txt=txxt)
+                txt = UIWrite(im,x,y,txt=txxt,color=self.color)
                 i+=1
                 if i>=len(keys):i=0
                 if txt is not None:
@@ -237,7 +238,12 @@ class node():
         x= int((self.x-cent[0])*scale)
         y= int((self.y-cent[1])*scale)
 
-        cv2.circle(im, (x,y),r,self.color,1)
+        cv2.circle(im, (x,y),r,self.color,1,cv2.LINE_AA)
+
+        if self.fixed:
+            cv2.line(im,(x,y),(x-r,y-2*r),self.color,1,cv2.LINE_AA)
+            cv2.circle(im, (x-r,y-2*r),int(r/2),self.color,-1,cv2.LINE_AA)
+            
         
         
         if logo and (self.image is not None) and not self.maximized:        
@@ -299,13 +305,21 @@ class node():
             BBi=self.BBinImage(scale=scale,cent=cent)
             ts=cv2.getTextSize(self.label,cv2.FONT_HERSHEY_PLAIN,1.2,3)
             x=int((BBi[0]+BBi[1]-ts[0][0])/2)
-            y=int((BBi[2]+BBi[3]+3*ts[0][1])/2)
+            if self.tontinrajat == []: 
+                y=int((BBi[2]+BBi[3])/2 + (3*ts[0][1])/2)
+            else:
+                color =colorblend(self.color, np.array(self.color,dtype=np.uint8)-128,0.5)
+                y=int((BBi[2]*2+BBi[3])/3 + (3*ts[0][1])/2)
             if x+ts[0][0]>len(im[0]):
                 x=len(im[0])-ts[0][0]
             if x<0:
                 x=0
-            cv2.putText(im,self.label,(x,y),cv2.FONT_HERSHEY_PLAIN,1.2,(255,255,255),3)
-            cv2.putText(im,self.label,(x,y),cv2.FONT_HERSHEY_PLAIN,1.2,(0,0,0),2)
+            if self.tontinrajat == []: 
+                cv2.putText(im,self.label,(x,y),cv2.FONT_HERSHEY_PLAIN,1.2,(255,255,255),3)
+                cv2.putText(im,self.label,(x,y),cv2.FONT_HERSHEY_PLAIN,1.2,(0,0,0),2)
+            else:
+                cv2.putText(im,self.label,(x,y),cv2.FONT_HERSHEY_PLAIN,1.2,color,2)
+
 
     
     def CenterLine(self,other):
@@ -368,7 +382,7 @@ class node():
         if mask:
             cv2.fillPoly(im, np.int32([tr]),255,cv2.LINE_AA)
         elif borders:
-            cv2.polylines(im, np.int32([tr]),True,self.color,2,cv2.LINE_AA)
+            cv2.polylines(im, np.int32([tr]),True,(0,0,0),2,cv2.LINE_AA)
         else:
             cv2.fillPoly(im, np.int32([tr]),self.color,cv2.LINE_AA)
             cv2.polylines(im, np.int32([tr]),True,(0,0,0),2,cv2.LINE_AA)
@@ -998,7 +1012,7 @@ class graph():
             
             if flags == 33 or flags == 32:
                 self.altLBUTTONDOWN(x,y)
-            if flags == 16 or flags == 17:
+            elif flags == 16 or flags == 17:
                 self.shiftLBUTTONDOWN(x,y)
             elif flags == 9:
                 self.LBUTTONDBLCLK(x,y)
@@ -1179,12 +1193,17 @@ class GRMoveThread(threading.Thread):
                 print("Ending mov")  
                 return
 
-def UIWrite(im,x,y,txt=""):
+def UIWrite(im,x,y,txt="",color=(0,0,0)):
     pos=0
     cursor="| "
     marg=5
     X=x
     Y=y
+    if color[0]==0 and color[1]==0 and color[2]==0:
+        bgcolor = (255,255,255)
+    else:
+        bgcolor = colorblend(color,np.array(color,dtype=np.uint8)+128,0.8)
+
     while True:
         x=X
         y=Y
@@ -1203,9 +1222,12 @@ def UIWrite(im,x,y,txt=""):
                 ts=cv2.getTextSize(txxt,cv2.FONT_HERSHEY_PLAIN,1.4,2)
                 x=len(im[0])-2*marg-ts[0][0]
 
-        imtxt=np.ones((ts[0][1]+2*marg,ts[0][0]+2*marg,3),dtype=np.uint8)*255
+        imtxt=np.ones((ts[0][1]+2*marg,ts[0][0]+2*marg,3),dtype=np.uint8)        
+        imtxt[:,:,0]=bgcolor[0]
+        imtxt[:,:,1]=bgcolor[1]
+        imtxt[:,:,2]=bgcolor[2]
 
-        cv2.putText(imtxt,txxt,(0+marg,ts[0][1]+marg),cv2.FONT_HERSHEY_PLAIN,1.4,(0,0,0),2)
+        cv2.putText(imtxt,txxt,(0+marg,ts[0][1]+marg),cv2.FONT_HERSHEY_PLAIN,1.4,color,2)
         im2[y:y+ts[0][1]+2*marg,x:x+ts[0][0]+2*marg]=imtxt
         cv2.imshow("Graafi",im2)
         
@@ -1542,6 +1564,12 @@ def colorBranches(GR,order=3, sat = 0.1, inv=True):
 
             e.node1.color=(int(c1[0]),int(c1[1]), int(c1[2])  )
             e.node2.color=(int(c2[0]),int(c2[1]), int(c2[2])  )
+
+def colorblend(NodeColor, FunColor, balance=0.5): 
+    c=np.array([0,0,0])
+    for i in range(3):
+        c[i] = NodeColor[i]*(1-balance)+ FunColor[i]*balance
+    return (int(c[0]),int(c[1]),int(c[2]))
 
 def ALTEdgesfromKEYWDS(KEYWDS,GRAAFI):
     NodeNames=list(KEYWDS.keys())
