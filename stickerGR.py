@@ -44,7 +44,7 @@ ARGS={
                          "V_SC","E_SC","P_SC_Out","P_SC_Out_Req","P_SC_In","P_To_Reg",\
                          "V_To_Reg","P_Tot_Out","V_Tot_Out", "TotalEnergy","PowerLowAlert","PowerShuttingDown"],
     "VoltageRegulation":["P_To_Reg","V_To_Reg","P_Tot_Out","V_Tot_Out"],
-    "PowerMonitor": ["V_PV","E_SC","E_Batt"],
+    "PowerMonitor": ["V_PV","P_PV_Out","E_SC","E_Batt","V_Batt"],
     
     #Logics block
     "Microcontroller":["TotalEnergy","PowerLowAlert","PowerShuttingDown","P_Tot_Out",\
@@ -105,8 +105,8 @@ CARGOFUN={ #
 }
 
 ARGVALUES={'Data_Sensors': None,
- 'E_Batt': 5000.0,
- 'E_SC': 0.0,
+ 'E_Batt':  13320,# 40mAh*3.7V = 533 Ws; #3.7 Wh == 13320 Ws
+ 'E_SC': 1000.0,
  'Lightness': 0.0,
  'Message_From_Antenna': "",
  'Message_From_Gateway': "",
@@ -138,9 +138,9 @@ ARGVALUES={'Data_Sensors': None,
  'ServiceRequest_From_Gateway': "",
  'Service_To_Gateway': "",
  'TotalEnergy': 0.0,
- 'V_Batt': 3.3,
+ 'V_Batt': 3.7,
  'V_PV': 0.0,
- 'V_SC': 0.0,
+ 'V_SC': 7.0,
  'V_To_Reg': 0.0,
  'V_Tot_Out': 0.0}
 

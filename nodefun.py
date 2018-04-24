@@ -180,7 +180,7 @@ class Environment():  #Template function
         #                0.5*np.cos(day_of_year/365*2*np.pi))+\
         #                np.average(np.random.random(5)-0.3),0)
         sunh = AuKorkeus(day_of_year+172,hour_of_day,leveyspiiri=65) #Oulu!!!
-        lightness = sd=sigmoid((sunh-7)/2)
+        lightness = sd=sigmoid((sunh-7)/2)*0.8
         self.bgcolor=tuple([min(k*lightness*255,255)for k in [.8,1,1.3]])
         self.bgcolor = colorblend(node.color, self.bgcolor, 0.4)
         args["Lightness"] = timedArg(lightness)
@@ -216,11 +216,38 @@ def AuKorkeus(vuodenpaiva,kellonaika,leveyspiiri=65):
 
 def NF_SolarCell(args, node, draw=False): 
     Lightness = readFloatArg("Lightness",args)
+    L=Lightness*1000
+    #k = 0.000086173303 #eV / K
+    #T=0
+    #perkT = 1/((273+T)*k) 
+    perkT = 39 #(1/0.026)
     
-    Light_to_volt=3.0
-    MaxVolt=5
-    V_PV = max(min(Lightness*Light_to_volt,MaxVolt),0)
+    I0=0.00001
+    kL=1e-6
+    IL=kL*L
+    U=np.arange(0,7,.01)
+
+    #RS=5/IL[1]
+    RSH=80000
+    n=22
+    IL0 = I0*(np.exp(-5*perkT/n)-1)-5/RSH
+
+    V = U - 5#Il*RS
+    I = I0*(np.exp(V*perkT/n)-1)-IL+ V/RSH -IL0
+    I=[min(i,0) for i in I]
+    PMx=-1*min(I*U)
+    V_PV = U[np.argmin(I*U)]
+    I_PV = -1*I[np.argmin(I*U)]
+    P_PV_Out = V_PV*I_PV    
+
+    #Huom: Open circuit malli 
+    #http://www.ee.sc.edu/personal/faculty/simin/ELCT566/21%20Solar%20Cells%20II.pdf
+
+    #Light_to_volt=3.0
+    #MaxVolt=5
+    #V_PV = max(min(Lightness*Light_to_volt,MaxVolt),0)
     args["V_PV"] = timedArg(V_PV)
+    args["P_PV_Out"] = timedArg(P_PV_Out)
     #print("SolarCell",Lightness,V_PV)
     return args
 
@@ -265,27 +292,53 @@ def NF_Supercap(args, node, draw=False): #PIKATESTI...
     P_SC_Out     = readFloatArg("P_SC_Out",args)
     P_SC_Out_Req = readFloatArg("P_SC_Out_Req",args)
     P_SC_In      = readFloatArg("P_SC_In",args)
-
+   
+    E_Max_SC     = readFloatArg("E_Max_SC",args)
+    if E_Max_SC == 0:
+        E_Max_SC = E_SC
+        args["E_Max_SC"] = timedArg(E_Max_SC)
+        E_SC=0
+   
+    V_Max_SC     = readFloatArg("V_Max_SC",args)
+    if V_Max_SC == 0:
+        V_Max_SC = V_SC
+        args["V_Max_SC"] = timedArg(V_Max_SC)
+        V_SC=0
+    
     vuoto = 0.00002*E_SC
 
     E_SC += (P_SC_In - vuoto - P_SC_Out)*60 # P=UI, E=P*dt, 
     E_SC = min(E_SC,1000)
     E_SC = max(E_SC,0)
+    V_SC = E_SC/E_Max_SC*V_Max_SC
     
     args["E_SC"]=timedArg(E_SC)
+    args["V_SC"]=timedArg(V_SC)
     return args
 
 def NF_Batt(args, node, draw=False): #PIKATESTI...
     E_Batt       = readFloatArg("E_Batt",args)
     V_Batt       = readFloatArg("V_Batt",args)
     P_Batt       = readFloatArg("P_Batt",args)
-
+    E_Max_Batt   = readFloatArg("E_Max_Batt",args)
+    if E_Max_Batt == 0:
+        E_Max_Batt = E_Batt
+        args["E_Max_Batt"] = timedArg(E_Max_Batt)
+    
     dt=60
 
     E_Batt -= P_Batt*dt# P=UI, E=P*dt, 
     #E = min(E,5000)
     E_Batt = max(E_Batt,0)
+    
+    cap = E_Batt/E_Max_Batt
+    U=np.arange(2.8,4.2,.01)
+    capacity = cap - sigmoid((U-3.75)*10)
+    V_Batt=U[np.argmin(capacity*capacity)]
+
     args["E_Batt"]=timedArg(E_Batt)
+    args["V_Batt"]=timedArg(V_Batt)
+    
     return args
 
 
@@ -293,7 +346,7 @@ def NF_Batt(args, node, draw=False): #PIKATESTI...
 def NF_EHarvester(args, node, draw=False): 
     OnState_Main = readBoolArg("OnState_Main",args)
     V_PV         = readFloatArg("V_PV",args)
-    V_PV_Out     = readFloatArg("P_PV_Out",args)
+    P_PV_Out     = readFloatArg("P_PV_Out",args)
     E_Batt       = readFloatArg("E_Batt",args)
     V_Batt       = readFloatArg("V_Batt",args)
     P_Batt       = readFloatArg("P_Batt",args)
@@ -315,11 +368,11 @@ def NF_EHarvester(args, node, draw=False):
     OnState_EHarvester = (E_Batt+E_SC)>0 
 
     if (V_PV>0) and (not OnState_EHarvester) and OnState_Main: #(PV only)
-        P_SC_In = V_PV*.01 #tähän virta...
+        P_SC_In = P_PV_Out*dt*0.8 #V_PV*.01 
 
 
     if OnState_Main and OnState_EHarvester:
-        P_SC_In = V_PV*.015 #tähän virta...
+        P_SC_In = P_PV_Out*dt*0.8 
 
         P_Batt=0.0
         P_SC_Out=0.0
