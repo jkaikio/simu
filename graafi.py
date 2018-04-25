@@ -3,6 +3,8 @@ import numpy as np
 from random import shuffle
 import time
 import threading
+import pickle
+
 
 def Vlen(V):
     vlen=V[0]*V[0]+V[1]*V[1]
@@ -134,14 +136,14 @@ class node():
         BBi[3] = int((BBi[3]-cent[1])*scale)
         return BBi
 
-    def update(self,draw=False):
+    def update(self,draw=False, dt=60):
         if "Function" in self.cargo:
-            self.runCargoFun(self.cargo["Function"], self.cargo["Args"],draw=draw)
+            self.runCargoFun(self.cargo["Function"], self.cargo["Args"],draw=draw,dt=dt)
         
     
-    def runCargoFun(self,CargoFun,args,draw=False):
+    def runCargoFun(self,CargoFun,args,draw=False,dt=60):
         if CargoFun is not None:
-            self.cargo["Args"]= CargoFun((args), node = self,draw = draw)
+            self.cargo["Args"]= CargoFun((args), node = self,draw = draw, dt=dt)
 
     def writeArgs(self,im, scale=1, cent=np.array([0,0])):
         x= int((self.x-cent[0])*scale)
@@ -153,7 +155,9 @@ class node():
             keys = list(self.cargo["Args"].keys())
             print(keys)
             while True:
-                if type(self.cargo["Args"][keys[i]])==list:
+                if keys == []:
+                    txxt=""
+                elif type(self.cargo["Args"][keys[i]])==list:
                     txxt = keys[i]+"="+str(self.cargo["Args"][keys[i]][0])
                 else:
                     txxt = keys[i]+"="+str(self.cargo["Args"][keys[i]])
@@ -175,6 +179,8 @@ class node():
                     if command in self.cargo["Args"]:
                         self.cargo["Args"].pop(command)
                         print("Removed: "+command)
+                # if medium=="function" or medium == "Function":
+                #     self.cargo["Function"]=command
                 if medium=="size" or medium == "Size":
                     try:
                         ss=float(command)
@@ -320,6 +326,9 @@ class node():
             else:
                 cv2.putText(im,self.label,(x,y),cv2.FONT_HERSHEY_PLAIN,1.2,color,2)
 
+        # if message:
+        #     if self.message = "": return
+            
 
     
     def CenterLine(self,other):
@@ -524,6 +533,9 @@ class graph():
                                 "labelmap":False, "rajat":False,"aspectlock":True,"color":False,"move":True,"update":True,"video":False}
         self.cpmargin =70
         self.cpgeom=[0,0]
+        self.file ="Graafi.GR"
+        self.updrounds = 1
+        self.dt=60
 
     def BoundingBoxSet(self):
         BB=np.array([999999999.0,-999999999.0,999999999.0,-999999999.0])
@@ -669,6 +681,7 @@ class graph():
     
 
     def RunThreaded(self,video=False,updrounds=10):
+        self.updrounds=updrounds
         if video: self.controlpanelflags["video"] = True
         upd=False
         mov=False
@@ -682,11 +695,11 @@ class graph():
             if "update" in self.controlpanelflags:
                 if self.controlpanelflags["update"]:
                     if not upd:
-                        GRUpd=GRUpdateThread(1,self,nrounds=updrounds)
+                        GRUpd=GRUpdateThread(1,self,nrounds=self.updrounds)
                         GRUpd.start()
                         upd=True
                     elif not GRUpd.isAlive():
-                        GRUpd=GRUpdateThread(1,self,nrounds=updrounds)
+                        GRUpd=GRUpdateThread(1,self,nrounds=self.updrounds)
                         GRUpd.start()                        
                 else: upd= False
                     
@@ -806,6 +819,10 @@ class graph():
         if "NodeWrite" in self.mousememory:
             n= self.mousememory.pop("NodeWrite",None)
             n.writeArgs(img,scale = sc, cent=c)
+
+        if "GRWrite" in self.mousememory:
+            self.mousememory.pop("GRWrite",None)
+            self.WriteCommand(img)
         
         if not self.controlpanelflags["video"]:
             x0 = (self.imgsize[1]-60, self.imgsize[0]-60)
@@ -944,7 +961,7 @@ class graph():
         for e in self.edges:
             e.update(draw=draw)
         for n in self.nodes:
-            n.update(draw=draw)
+            n.update(draw=draw, dt=self.dt)
     
 
     def MoveAll(self,  sc=1, scAuto=True):
@@ -1080,6 +1097,12 @@ class graph():
             n.maximized= not n.maximized
 
     def shiftLBUTTONDOWN(self,x,y):
+        x0 = (self.imgsize[1]-60, self.imgsize[0]-60)
+        x1 = (self.imgsize[1]-50, self.imgsize[0]-50)
+        if (x0[0] <= x <= x1[0]) and (x0[1] <= y <= x1[1]):
+            self.mousememory["GRWrite"]=True
+            return
+
         found, n = self.NodeinXY(x,y)
         
         if found:
@@ -1145,6 +1168,100 @@ class graph():
                 nx=n
             #print(l, ln, n, nx)
         return True, nx
+    
+    def WriteCommand(self,im ):
+        x= int(len(im[0])-70)
+        y= int(len(im)-70)
+
+        txt=UIWrite(im,x,y,color=self.bgcolor)
+        if txt is None:
+            i=0
+            options=[["save:",self.file],["UPD:",str(self.updrounds)]]
+            while True: 
+                txxt = options[i][0]+options[i][1]
+                txt = UIWrite(im,x,y,txt=txxt,color=self.bgcolor)
+                i+=1
+                if i>=len(options):i=0
+                if txt is not None:
+                    break
+
+        if txt=="": return
+        
+        i=txt.find("=")
+        j=txt.find(":")
+        if j != -1:
+            medium=txt[:j]
+            command=txt[j+1:]
+            print("Graafi:"+ command)
+            if medium=="save":
+                self.file=command
+                self.save()
+            # if medium=="size" or medium == "Size":
+            #     try:
+            #         ss=float(command)
+            #     except:
+            #         print("Exception: could not set size")
+            #         ss=self.mximsize    
+            #     if ss>1.5: ss=1.5
+            #     if ss<0.1: ss=0.1
+            #     self.mximsize=ss
+            if medium == "UPD" or medium == "upd" or medium == "update":
+                try:
+                    self.updrounds = int(command)
+                except:
+                    print("Exception: Could not change update rate to ",command)
+            if medium == "dt" or medium == "DT" or medium == "dT":
+                try:
+                    self.dt = float(command)
+                except:
+                    print("Exception: Could not change delta time to ",command)
+            if medium == "node" or medium == "Node" or medium == "NODE":
+                if command == "new" or command == "New" or command =="NEW":
+                    self.newNode()
+            if medium == "edges" or medium == "Edges" or medium == "EDGES":
+                if command == "update" or command == "Update" or command =="UPDATE":
+                    self.edgesUpdate()
+
+            if (medium =="py") or (medium =="Py") or (medium=="PY"):
+                k=command.find("(")
+                if k!=-1:
+                    cfunct=command[:k]
+                    cargs=command[k:]
+                    crunpy(cfunct,cargs,self)
+    
+    def newNode(self):
+        BB=self.BoundingBoxSet()
+        n=node(np.random.random()*(BB[1]-BB[0])+BB[0],np.random.random()*(BB[2]-BB[1])+BB[1]) 
+        n.cargo["node"]=n
+        n.cargo["Args"]={}
+        n.color=colorblend(self.bgcolor,np.array(self.bgcolor,dtype=np.uint8)+128,0.9)
+        self.nodes.append(n) 
+
+    def edgesUpdate(self):
+        edges=[]
+        i=0
+        for n in self.nodes[:-1]:
+            i+=1
+            nkeys=list(n.cargo["Args"].keys())
+            for nn in self.nodes[i:]:
+                for k in nkeys:
+                    if k in nn.cargo["Args"]:
+                        e= edge(n,nn)
+                        e.label = k
+                        edges.append(e)
+        self.edges=edges
+                
+
+    def save(self):
+        file= open(self.file,"wb")
+        pickle.dump(self,file)
+        file.close()
+
+def loadGraph(filename="Graafi.GR"):
+        file=open(filename, "rb")
+        loadedGraph=pickle.load(file)
+        file.close()
+        return loadedGraph
 
 
 class GRUpdateThread(threading.Thread):

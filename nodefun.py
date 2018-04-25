@@ -25,8 +25,10 @@ def readStrArg(label,args,ifnotvalue=""):
     else: variable=ifnotvalue
     return variable   
 
+def nodefunfromstr(str):
+    return eval(str)
 
-def NF_Monitor(args, node, draw=False):
+def NF_Monitor(args, node, draw=False,dt=60):
     if not "NF_Monitor" in args:
         NFMonitor = Monitor(label = node.label)
         NFMonitor.sourcelabels = list(args.keys())
@@ -38,7 +40,7 @@ def NF_Monitor(args, node, draw=False):
         node.image = NFMonitor.Draw()
         return args
     NFMonitor.bgcolor=node.color
-    NFMonitor.update(args)
+    NFMonitor.update(args,dt)
     
     #node.image = np.zeros((200,200,3),dtype=np.uint8)
     #cv2.putText(node.image,"MONITOR",(10,120),cv2.FONT_HERSHEY_SIMPLEX, 4, (255,255,255) ,4)
@@ -53,6 +55,7 @@ class Monitor():  #Template function
         self.parent = None
         #self.deltatime=60.0 #sekunteina 
         self.MonitorData =[]
+        self.dtData=[]
         #self.monitorImage = None
         self.h=300
         self.w=500
@@ -62,7 +65,7 @@ class Monitor():  #Template function
         self.every_nth=1
         self.ave=1
     
-    def update(self,args):
+    def update(self,args,dt=60):
         #dt=self.deltatime #vaihdetaan logiikan pyytämään aikahyppyyn myöhemmin
         #self.sourcelabels = []
         if "M_reset" in args:
@@ -74,6 +77,7 @@ class Monitor():  #Template function
         for l in self.sourcelabels:
             data.append(args[l][0])
         self.MonitorData.append(data)
+        self.dtData.append(dt)
         if "M_nth" in args:
             self.every_nth=int(args["M_nth"][0])
         if "M_ave" in args:
@@ -129,7 +133,7 @@ class Monitor():  #Template function
                         cv2.FONT_HERSHEY_SIMPLEX, .5, color )
         return img
 
-def NF_Environment(args, node, draw=False):
+def NF_Environment(args, node, draw=False,dt=60):
     if not "NF_Environment" in args:
         NFEnvironment = Environment(label = node.label)
         ##NF_Environment.sourcelabels = list(args.keys())
@@ -139,7 +143,7 @@ def NF_Environment(args, node, draw=False):
     if draw:
         node.image= NFEnvironment.Draw()
         return args   
-    args = NFEnvironment.update(args,node)
+    args = NFEnvironment.update(args,node,dt)
 
     #node.image = NF_Environment.Draw()
     #node.image = np.zeros((200,200,3),dtype=np.uint8)
@@ -160,7 +164,8 @@ class Environment():  #Template function
         self.date=""
         self.clock=""
 
-    def update(self, args, node):
+    def update(self, args, node,dt=60):
+        self.deltatime=dt
         if "Time" in args:
             self.time=float(args["Time"][0])
         self.time+=self.deltatime #vaihdetaan logiikan pyytämään aikahyppyyn myöhemmin
@@ -214,7 +219,7 @@ def AuKorkeus(vuodenpaiva,kellonaika,leveyspiiri=65):
         fSunHeigth=sh+P/(273+T)*(0.1594+0.0196*sh+0.00002*sh*sh)/(1+0.505*sh+0.0845*sh*sh) #Ilmakeh�n refraktio
         return fSunHeigth    
 
-def NF_SolarCell(args, node, draw=False): 
+def NF_SolarCell(args, node, draw=False,dt=60): 
     Lightness = readFloatArg("Lightness",args)
     L=Lightness*1000
     #k = 0.000086173303 #eV / K
@@ -276,7 +281,7 @@ def switchimage(bgcolor,onstate):
     return im
 
 
-def NF_MainSwitch(args, node, draw=False):
+def NF_MainSwitch(args, node, draw=False,dt=60):
     if draw:
         node.image=switchimage(node.color,readBoolArg("OnState_Main",args))
         return args
@@ -286,7 +291,7 @@ def NF_MainSwitch(args, node, draw=False):
         node.maximized=False
     return args
 
-def NF_Supercap(args, node, draw=False): #PIKATESTI...
+def NF_Supercap(args, node, draw=False, dt=60): #PIKATESTI...
     V_SC         = readFloatArg("V_SC",args)
     E_SC         = readFloatArg("E_SC",args) 
     P_SC_Out     = readFloatArg("P_SC_Out",args)
@@ -305,9 +310,9 @@ def NF_Supercap(args, node, draw=False): #PIKATESTI...
         args["V_Max_SC"] = timedArg(V_Max_SC)
         V_SC=0
     
-    vuoto = 0.00002*E_SC
+    vuoto = 0.0000002*E_SC * dt
 
-    E_SC += (P_SC_In - vuoto - P_SC_Out)*60 # P=UI, E=P*dt, 
+    E_SC += (P_SC_In - vuoto - P_SC_Out) *dt # P=UI, E=P*dt, 
     E_SC = min(E_SC,1000)
     E_SC = max(E_SC,0)
     V_SC = E_SC/E_Max_SC*V_Max_SC
@@ -316,7 +321,7 @@ def NF_Supercap(args, node, draw=False): #PIKATESTI...
     args["V_SC"]=timedArg(V_SC)
     return args
 
-def NF_Batt(args, node, draw=False): #PIKATESTI...
+def NF_Batt(args, node, draw=False,dt=60): #PIKATESTI...
     E_Batt       = readFloatArg("E_Batt",args)
     V_Batt       = readFloatArg("V_Batt",args)
     P_Batt       = readFloatArg("P_Batt",args)
@@ -325,7 +330,7 @@ def NF_Batt(args, node, draw=False): #PIKATESTI...
         E_Max_Batt = E_Batt
         args["E_Max_Batt"] = timedArg(E_Max_Batt)
     
-    dt=60
+    #dt=60
 
     E_Batt -= P_Batt*dt# P=UI, E=P*dt, 
     #E = min(E,5000)
@@ -343,7 +348,7 @@ def NF_Batt(args, node, draw=False): #PIKATESTI...
 
 
  
-def NF_EHarvester(args, node, draw=False): 
+def NF_EHarvester(args, node, draw=False,dt=60): 
     OnState_Main = readBoolArg("OnState_Main",args)
     V_PV         = readFloatArg("V_PV",args)
     P_PV_Out     = readFloatArg("P_PV_Out",args)
@@ -363,7 +368,7 @@ def NF_EHarvester(args, node, draw=False):
     PowerLowAlert = readBoolArg("PowerLowAlert",args)
     PowerShuttingDown = readBoolArg("PowerShuttingDown",args)
 
-    dt=60
+    #dt=60
 
     OnState_EHarvester = (E_Batt+E_SC)>0 
 
@@ -434,7 +439,7 @@ def NF_EHarvester(args, node, draw=False):
     args["PowerShuttingDown"]= timedArg(PowerShuttingDown)
     return args
 
-def NF_VRegulator(args, node, draw=False):
+def NF_VRegulator(args, node, draw=False, dt=60):
     
     #P_To_Reg     = readFloatArg("P_To_Reg",args)
     #V_To_Reg     = readFloatArg("V_To_Reg",args)
@@ -458,7 +463,7 @@ def NF_VRegulator(args, node, draw=False):
 #                       "RadioMessagePush","RadioMessagePull","NFC"],
 
 
-def NF_Microcontroller(args, node, draw=False): 
+def NF_Microcontroller(args, node, draw=False,dt=60): 
     if not "NF_Microcontroller" in args:
         NFMicrocontroller = Microcontroller(label = node.label)
         #NFMicrocontroller.sourcelabels = list(args.keys())
@@ -469,7 +474,7 @@ def NF_Microcontroller(args, node, draw=False):
     if draw:
         node.image = NFMicrocontroller.Draw()
         return args
-    NFMicrocontroller.update(args,node)
+    NFMicrocontroller.update(args,node, dt)
 
     return args
 
@@ -486,7 +491,7 @@ class Microcontroller():  #Template function
                 "sleep":0.007,"wakingfromsleep":0.01,"energysaving":0.01,"booting":0.01,"ON":0.02} 
 
 
-    def update(self, args, node):
+    def update(self, args, node,dt):
         P_Tot_Out     = readFloatArg("P_Tot_Out",args)
         V_Tot_Out     = readFloatArg("V_Tot_Out",args)
         TotalEnergy   = readFloatArg("TotalEnergy",args)
@@ -494,6 +499,7 @@ class Microcontroller():  #Template function
         PowerShuttingDown = readBoolArg("PowerShuttingDown",args)
         self.mode     = readStrArg("MC_mode",args,"off")
         
+        self.deltatime=dt
         self.bgcolor=node.color
         self.time+=self.deltatime #vaihdetaan logiikan pyytämään aikahyppyyn myöhemmin
 
