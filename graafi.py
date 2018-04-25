@@ -91,7 +91,13 @@ def PotentialSize(dX, size=10, repulsion = True,scale=1.0):
      
     return p*dx*scale
 
-
+########################################################################################
+#       
+#       #   #
+#       ##  #
+#       # # #
+#       #  ##
+########################################################################################
 class node():
     def __init__(self,x,y):
         self.x = x
@@ -145,7 +151,7 @@ class node():
         if CargoFun is not None:
             self.cargo["Args"]= CargoFun((args), node = self,draw = draw, dt=dt)
 
-    def writeArgs(self,im, scale=1, cent=np.array([0,0])):
+    def writeArgs(self,im, scale=1, cent=np.array([0,0]),GR=None):
         x= int((self.x-cent[0])*scale)
         y= int((self.y-cent[1])*scale)
 
@@ -174,13 +180,17 @@ class node():
             if j != -1:
                 medium=txt[:j]
                 command=txt[j+1:]
-                print(self.label+":"+command)
+                print(self.label+": "+medium+":"+command)
                 if medium=="DEL":
                     if command in self.cargo["Args"]:
                         self.cargo["Args"].pop(command)
                         print("Removed: "+command)
-                # if medium=="function" or medium == "Function":
-                #     self.cargo["Function"]=command
+                if medium=="function" or medium == "Function":
+                    if GR is not None:
+                        if command in GR.functions:
+                            self.cargo["Function"]=GR.functions[command]
+                if medium=="name" or medium == "Name" or medium =="NAME" or medium == "label" or medium =="Label":
+                    self.label=command
                 if medium=="size" or medium == "Size":
                     try:
                         ss=float(command)
@@ -463,6 +473,14 @@ class node():
 
             
 
+########################################################################################
+#       
+#       ######
+#       #
+#       ###
+#       #
+#       ######  
+########################################################################################
 
                    
             
@@ -513,7 +531,15 @@ class edge():
             s=1-self.labelpos
             cv2.putText(im,self.label,(int(x1*t+x2*s),int(y1*t+y2*s)),cv2.FONT_HERSHEY_PLAIN,1.2,colorconn,2)
 
-    
+########################################################################################
+#       
+#        ####
+#       #    
+#       # ####
+#       #    #
+#        ####  
+########################################################################################
+   
 
 
 class graph():
@@ -536,6 +562,7 @@ class graph():
         self.file ="Graafi.GR"
         self.updrounds = 1
         self.dt=60
+        self.functions={}
 
     def BoundingBoxSet(self):
         BB=np.array([999999999.0,-999999999.0,999999999.0,-999999999.0])
@@ -818,7 +845,7 @@ class graph():
 
         if "NodeWrite" in self.mousememory:
             n= self.mousememory.pop("NodeWrite",None)
-            n.writeArgs(img,scale = sc, cent=c)
+            n.writeArgs(img,scale = sc, cent=c, GR=self)
 
         if "GRWrite" in self.mousememory:
             self.mousememory.pop("GRWrite",None)
@@ -1176,7 +1203,8 @@ class graph():
         txt=UIWrite(im,x,y,color=self.bgcolor)
         if txt is None:
             i=0
-            options=[["save:",self.file],["UPD:",str(self.updrounds)]]
+            options=[["save:",self.file],["UPD:",str(self.updrounds)],["dt:",str(self.dt)],["edges:","update"],["node:","new"],\
+                    ["newedge:","<edgelabel>"]]
             while True: 
                 txxt = options[i][0]+options[i][1]
                 txt = UIWrite(im,x,y,txt=txxt,color=self.bgcolor)
@@ -1221,6 +1249,8 @@ class graph():
             if medium == "edges" or medium == "Edges" or medium == "EDGES":
                 if command == "update" or command == "Update" or command =="UPDATE":
                     self.edgesUpdate()
+            if medium == "newedge" or medium == "NewEdge" or medium == "newEdge" or medium == "NEWEDGE":
+                self.edgesUpdate(label=command)
 
             if (medium =="py") or (medium =="Py") or (medium=="PY"):
                 k=command.find("(")
@@ -1237,8 +1267,22 @@ class graph():
         n.color=colorblend(self.bgcolor,np.array(self.bgcolor,dtype=np.uint8)+128,0.9)
         self.nodes.append(n) 
 
-    def edgesUpdate(self):
+    def edgesUpdate(self,label=""):
         edges=[]
+        if label!="":
+            for e in self.edges:
+                if label == e.label:
+                    self.edges.remove(e)
+            i=0
+            for n in self.nodes[:-1]:
+                i+=1
+                for nn in self.nodes[i:]:
+                    if (label in nn.cargo["Args"]) and (label in n.cargo["Args"]):
+                        e= edge(n,nn)
+                        e.label = label
+                        self.edges.append(e)
+            return
+
         i=0
         for n in self.nodes[:-1]:
             i+=1
@@ -1246,9 +1290,10 @@ class graph():
             for nn in self.nodes[i:]:
                 for k in nkeys:
                     if k in nn.cargo["Args"]:
-                        e= edge(n,nn)
-                        e.label = k
-                        edges.append(e)
+                        if k[0]!="$":
+                            e= edge(n,nn)
+                            e.label = k
+                            edges.append(e)
         self.edges=edges
                 
 
@@ -1262,6 +1307,14 @@ def loadGraph(filename="Graafi.GR"):
         loadedGraph=pickle.load(file)
         file.close()
         return loadedGraph
+########################################################################################
+#       
+#       ##   ##
+#       # # # # 
+#       #  #  #
+#       #     #
+#       #     #
+########################################################################################
 
 
 class GRUpdateThread(threading.Thread):
@@ -1479,11 +1532,19 @@ def IMAGEStoDICT(IMAGES, GRAAFI):
 def DICTfromCARGOFUN(CARGOFUN,ARGS,ARGVALUES,GRAAFI):
     NodeNames=list(ARGS.keys())
     i=0
+    GRAAFI["Functions"]={}
     for nn in NodeNames:
         GRAAFI["Nodes"][nn]={"Args":{}}
         for a in ARGS[nn]:
             GRAAFI["Nodes"][nn]["Args"][a]=timedArg(ARGVALUES[a])
-        GRAAFI["Nodes"][nn]["Function"]=CARGOFUN[nn]        
+        GRAAFI["Nodes"][nn]["Function"]=CARGOFUN[nn]
+        if CARGOFUN[nn] is not None:
+            fstr=str(CARGOFUN[nn])
+            i1=fstr.find(" ")
+            i2=fstr.find(" ",i1+1)
+            fstr = fstr[i1+1:i2]
+            GRAAFI["Functions"][fstr]=CARGOFUN[nn]
+
     for nn in NodeNames[:-1]:
         i+=1
         for nnn in NodeNames[i:]:
@@ -1491,6 +1552,8 @@ def DICTfromCARGOFUN(CARGOFUN,ARGS,ARGVALUES,GRAAFI):
                 for kww in ARGS[nnn]:
                     if kw == kww:
                         GRAAFI["Edges"].append([nn,nnn,kw])
+     
+    
     return GRAAFI
 
 
@@ -1516,6 +1579,7 @@ def GRfromDICT(GRAAFI,rx,ry, colorscheme = "BW", color = (128,100,100)):
     GR=graph(nodes,edges)
     Recolor(GR, colorscheme, color)
     GR.imgsize=np.array([ry,rx,3])
+    GR.functions=GRAAFI["Functions"]
     return GR
 
 def Recolor(GR,colorscheme = "BW", color = (128,100,100),balance=0.66,branch=False):

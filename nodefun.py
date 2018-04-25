@@ -29,13 +29,18 @@ def nodefunfromstr(str):
     return eval(str)
 
 def NF_Monitor(args, node, draw=False,dt=60):
-    if not "NF_Monitor" in args:
+    if not "$NF_Monitor" in args:
         NFMonitor = Monitor(label = node.label)
-        NFMonitor.sourcelabels = list(args.keys())
-        args["NF_Monitor"]=NFMonitor
-        args["M_reset"]=timedArg(False)
+        NFMonitor.sourcelabels = []
+        keys=list(args.keys())
+        for k in keys:
+            if k[0]!="$":
+                NFMonitor.sourcelabels.append(k)
+        args["$NF_Monitor"]=NFMonitor
+        args["$M_reset"]=timedArg(False)
         node.mximsize=0.6
-    NFMonitor=args["NF_Monitor"]
+        node.image=np.zeros([1,1,3],dtype=np.uint8)
+    NFMonitor=args["$NF_Monitor"]
     if draw:
         node.image = NFMonitor.Draw()
         return args
@@ -68,23 +73,28 @@ class Monitor():  #Template function
     def update(self,args,dt=60):
         #dt=self.deltatime #vaihdetaan logiikan pyytämään aikahyppyyn myöhemmin
         #self.sourcelabels = []
-        if "M_reset" in args:
-            if args["M_reset"][0]:
+        if "$M_reset" in args:
+            if args["$M_reset"][0]:
                 self.MonitorData=[]
-                args["M_reset"]=timedArg(False)
-         
+                self.sourcelabels=[]
+                args["$M_reset"]=timedArg(False)
+                keys=list(args.keys())
+                for k in keys:
+                    if k[0]!="$":
+                        self.sourcelabels.append(k)         
         data=[]
         for l in self.sourcelabels:
             data.append(args[l][0])
         self.MonitorData.append(data)
         self.dtData.append(dt)
-        if "M_nth" in args:
-            self.every_nth=int(args["M_nth"][0])
-        if "M_ave" in args:
-            self.ave = int(args["M_ave"][0])
+        if "$Reso" in args:
+            self.every_nth=int(args["$Reso"][0])
+        if "$Ave" in args:
+            self.ave = int(args["$Ave"][0])
         return args
 
     def Draw(self):
+        
         col=np.array(self.bgcolor,dtype=np.uint8)
         data=np.array(self.MonitorData)
         if self.ave>1:
@@ -94,10 +104,17 @@ class Monitor():  #Template function
                     data[:,i]=np.convolve(data[:,i],Vconv,mode="same")
         data=data[0::self.every_nth]
         data=data[-self.w:]
+        
+        tme=cumsum(self.dtData)
+        tme=tme[0::self.every_nth]
+        tme=tme[-self.w:]
+
+        
 
         ld=len(data[0])
         mxd=list(np.zeros(ld))
         mnd=list(np.zeros(ld))
+
         for i in range(ld):
             if (type(data[0,i]) != bool) and (data[0,i] is not None)and (type(data[0,i]) != str):
                 mxd[i]=max(data[:,i])
@@ -105,11 +122,11 @@ class Monitor():  #Template function
                 if mnd[i]>0:mnd[i]=0
                 if mxd[i]<0:mxd[i]=0
                 if mxd[i]>0 and mnd[i]==0:
-                    data[:,i]=self.h-data[:,i]/mxd[i]*self.h
+                    data[:,i]=self.h*0.95-data[:,i]/mxd[i]*self.h*0.9
                 if mxd[i]==0 and mnd[i]<0:
-                    data[:,i]=data[:,i]/mnd[i]*self.h
+                    data[:,i]=self.h*0.95 + data[:,i]/mnd[i]*self.h*0.9
                 if mxd[i]>0 and mnd[i]<0:
-                    data[:,i]=self.h/2-data[:,i]*2/max(mxd[i],-1*mnd[i])*self.h
+                    data[:,i]=self.h/2-data[:,i]*2/max(mxd[i],-1*mnd[i])*self.h*0.9
         #if len(data)>300: data[:,:300]=data[:,-300:]
         img=np.ones((self.h,self.w,3), np.uint8)
         img[:,:,0]=self.bgcolor[0]
@@ -117,6 +134,8 @@ class Monitor():  #Template function
         img[:,:,2]=self.bgcolor[2]
 
         cv2.line(img,(0,int(self.h/2)),(self.w,int(self.h/2)),colorblend(col,col+128,0.3),2,cv2.LINE_AA)
+        cv2.line(img,(0,int(self.h*0.05)),(self.w,int(self.h*0.05)),colorblend(col,col+128,0.3),2,cv2.LINE_AA)
+        cv2.line(img,(0,int(self.h*0.95)),(self.w,int(self.h*0.95)),colorblend(col,col+128,0.3),2,cv2.LINE_AA)
 
         for j in range(ld):
             #for i
@@ -129,17 +148,18 @@ class Monitor():  #Template function
                     color=colorblend(color,col,0.2)      
                     cv2.line(img,(i,int(data[i,j])),(i+1,int(data[i+1,j])),color,1,cv2.LINE_AA)
                     cv2.putText(img,str(np.round(mnd[j],2))+" < " + self.sourcelabels[j] + " < "+str(np.round(mxd[j],2)),\
-                        (10,20+j*30),\
+                        (10,30+j*30),\
                         cv2.FONT_HERSHEY_SIMPLEX, .5, color )
         return img
 
 def NF_Environment(args, node, draw=False,dt=60):
-    if not "NF_Environment" in args:
+    if not "$NF_Environment" in args:
         NFEnvironment = Environment(label = node.label)
         ##NF_Environment.sourcelabels = list(args.keys())
-        args["NF_Environment"]=NFEnvironment
+        args["$NF_Environment"]=NFEnvironment
         node.mximsize=0.2
-    NFEnvironment=args["NF_Environment"]
+        node.image=np.zeros([1,1,3],dtype=np.uint8)
+    NFEnvironment=args["$NF_Environment"]
     if draw:
         node.image= NFEnvironment.Draw()
         return args   
@@ -166,8 +186,8 @@ class Environment():  #Template function
 
     def update(self, args, node,dt=60):
         self.deltatime=dt
-        if "Time" in args:
-            self.time=float(args["Time"][0])
+        if "$Time" in args:
+            self.time=float(args["$Time"][0])
         self.time+=self.deltatime #vaihdetaan logiikan pyytämään aikahyppyyn myöhemmin
         tim = self.time
         year=tim/(365*24*3600)
@@ -189,8 +209,8 @@ class Environment():  #Template function
         self.bgcolor=tuple([min(k*lightness*255,255)for k in [.8,1,1.3]])
         self.bgcolor = colorblend(node.color, self.bgcolor, 0.4)
         args["Lightness"] = timedArg(lightness)
-        if "Time" in args:
-            args["Time"] = timedArg(self.time)
+        if "$Time" in args:
+            args["$Time"] = timedArg(self.time)
         return args
 
     def Draw(self):
@@ -298,16 +318,16 @@ def NF_Supercap(args, node, draw=False, dt=60): #PIKATESTI...
     P_SC_Out_Req = readFloatArg("P_SC_Out_Req",args)
     P_SC_In      = readFloatArg("P_SC_In",args)
    
-    E_Max_SC     = readFloatArg("E_Max_SC",args)
+    E_Max_SC     = readFloatArg("$E_Max_SC",args)
     if E_Max_SC == 0:
         E_Max_SC = E_SC
-        args["E_Max_SC"] = timedArg(E_Max_SC)
+        args["$E_Max_SC"] = timedArg(E_Max_SC)
         E_SC=0
    
-    V_Max_SC     = readFloatArg("V_Max_SC",args)
+    V_Max_SC     = readFloatArg("$V_Max_SC",args)
     if V_Max_SC == 0:
         V_Max_SC = V_SC
-        args["V_Max_SC"] = timedArg(V_Max_SC)
+        args["$V_Max_SC"] = timedArg(V_Max_SC)
         V_SC=0
     
     vuoto = 0.0000002*E_SC * dt
@@ -325,10 +345,10 @@ def NF_Batt(args, node, draw=False,dt=60): #PIKATESTI...
     E_Batt       = readFloatArg("E_Batt",args)
     V_Batt       = readFloatArg("V_Batt",args)
     P_Batt       = readFloatArg("P_Batt",args)
-    E_Max_Batt   = readFloatArg("E_Max_Batt",args)
+    E_Max_Batt   = readFloatArg("$E_Max_Batt",args)
     if E_Max_Batt == 0:
         E_Max_Batt = E_Batt
-        args["E_Max_Batt"] = timedArg(E_Max_Batt)
+        args["$E_Max_Batt"] = timedArg(E_Max_Batt)
     
     #dt=60
 
@@ -464,13 +484,14 @@ def NF_VRegulator(args, node, draw=False, dt=60):
 
 
 def NF_Microcontroller(args, node, draw=False,dt=60): 
-    if not "NF_Microcontroller" in args:
+    if not "$NF_Microcontroller" in args:
         NFMicrocontroller = Microcontroller(label = node.label)
         #NFMicrocontroller.sourcelabels = list(args.keys())
-        args["NF_Microcontroller"]=NFMicrocontroller
+        args["$NF_Microcontroller"]=NFMicrocontroller
         node.mximsize=0.2
+        node.image=np.zeros([1,1,3],dtype=np.uint8)
         #args["M_reset"]=timedArg(False)
-    NFMicrocontroller=args["NF_Microcontroller"]
+    NFMicrocontroller=args["$NF_Microcontroller"]
     if draw:
         node.image = NFMicrocontroller.Draw()
         return args
@@ -497,7 +518,7 @@ class Microcontroller():  #Template function
         TotalEnergy   = readFloatArg("TotalEnergy",args)
         PowerLowAlert = readBoolArg("PowerLowAlert",args)
         PowerShuttingDown = readBoolArg("PowerShuttingDown",args)
-        self.mode     = readStrArg("MC_mode",args,"off")
+        self.mode     = readStrArg("$MC_mode",args,"off")
         
         self.deltatime=dt
         self.bgcolor=node.color
@@ -538,7 +559,8 @@ class Microcontroller():  #Template function
                 self.mode="shutdown"
                 P_Tot_Out= self.P["shutdown"]  
 
-        args["MC_mode"]= timedArg(self.mode)
+        args["$MC_mode"]= timedArg(self.mode)
+        args["MC_mode"]= timedArg(list(self.P.keys()).index(self.mode))
         args["P_To_Reg"]= timedArg(P_Tot_Out)
         args["V_To_Reg"]= timedArg(V_Tot_Out)
         return args
