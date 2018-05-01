@@ -109,7 +109,42 @@ class Monitor():  #Template function
         tme=tme[0::self.every_nth]
         tme=tme[-self.w:]
 
-
+        dtime=tme[-1]-tme[0]
+        if dtime > 63072000: # 2 years
+            tme=tme/31536000
+            tunit="y"
+        elif dtime > 7776000: # 3 months
+            tme=tme/2592000
+            tunit="m"
+        elif dtime > 1814400: # 3 weeks
+            tme=tme/604800
+            tunit="w"
+        elif dtime > 172800: # 2 days
+            tme=tme/86400
+            tunit="d"
+        elif dtime > 7200: # 2 hours
+            tme=tme/3600
+            tunit="h"
+        elif dtime > 120: # 2 minutes
+            tme=tme/60
+            tunit="m"
+        elif dtime > 2: # 2 seconds
+            tme=tme
+            tunit="s"
+        elif dtime > 0.2:
+            tme=tme*10
+            tunit="s/10"
+        elif dtime > 0.02:
+            tme=tme*100
+            tunit="s/100"
+        else:
+            tme=tme*100
+            tunit="ms"
+        tme=np.floor(tme)
+        tindx=[]
+        for i in range(len(tme)-1):
+            if tme[i]<tme[i+1]:
+                tindx.append(i+1)
 
         ld=len(data[0])
         mxd=list(np.zeros(ld))
@@ -133,23 +168,27 @@ class Monitor():  #Template function
         img[:,:,1]=self.bgcolor[1]
         img[:,:,2]=self.bgcolor[2]
 
-        cv2.line(img,(0,int(self.h/2)),(self.w,int(self.h/2)),colorblend(col,col+128,0.3),2,cv2.LINE_AA)
-        cv2.line(img,(0,int(self.h*0.05)),(self.w,int(self.h*0.05)),colorblend(col,col+128,0.3),2,cv2.LINE_AA)
-        cv2.line(img,(0,int(self.h*0.95)),(self.w,int(self.h*0.95)),colorblend(col,col+128,0.3),2,cv2.LINE_AA)
+        cl=colorblend(col,col+128,0.3)
+        cv2.line(img,(0,int(self.h/2)),(self.w,int(self.h/2)),cl,2,cv2.LINE_AA)
+        cv2.line(img,(0,int(self.h*0.05)),(self.w,int(self.h*0.05)),cl,2,cv2.LINE_AA)
+        cv2.line(img,(0,int(self.h*0.95)),(self.w,int(self.h*0.95)),cl,2,cv2.LINE_AA)
+
+        for i in tindx:
+            cv2.line(img,(i,int(self.h*0.05)),(i,int(self.h*0.95)),cl,1,cv2.LINE_AA)
+            cv2.putText(img,str(tme[i])+" "+tunit, (i+2,int(self.h*0.05+15)),cv2.FONT_HERSHEY_SIMPLEX, .25, cl)    
 
         for j in range(ld):
             #for i
             #cv2.polylines(img, np.int32([points]), 1, (255,255,255))
             if (type(data[0,j]) != bool) and (data[0,j] is not None)and (type(data[0,j]) != str):
+                color= np.array((int(32*np.sin(8.0*j/(ld+1))),int(32*np.sin(8.0*j/(ld+1))),int(32*np.cos(8.0*j/(ld+1)))),dtype=np.uint8)
+                #color=np.array(color/max(color)*128,dtype=np.uint8)
+                color=col+color+128
+                color=colorblend(color,col,0.2)      
                 for i in range(len(data)-1): 
-                    color= np.array((int(32*np.sin(8.0*j/(ld+1))),int(32*np.sin(8.0*j/(ld+1))),int(32*np.cos(8.0*j/(ld+1)))),dtype=np.uint8)
-                    #color=np.array(color/max(color)*128,dtype=np.uint8)
-                    color=col+color+128
-                    color=colorblend(color,col,0.2)      
                     cv2.line(img,(i,int(data[i,j])),(i+1,int(data[i+1,j])),color,1,cv2.LINE_AA)
-                    cv2.putText(img,str(np.round(mnd[j],2))+" < " + self.sourcelabels[j] + " < "+str(np.round(mxd[j],2)),\
-                        (10,30+j*30),\
-                        cv2.FONT_HERSHEY_SIMPLEX, .5, color )
+                cv2.putText(img,str(np.round(mnd[j],2))+" < " + self.sourcelabels[j] + " < "+str(np.round(mxd[j],2)),\
+                    (10,30+j*30),cv2.FONT_HERSHEY_SIMPLEX, .5, color )
         return img
 
 def NF_Environment(args, node, draw=False,dt=60):
@@ -318,25 +357,29 @@ def NF_Supercap(args, node, draw=False, dt=60): #PIKATESTI...
     P_SC_Out_Req = readFloatArg("P_SC_Out_Req",args)
     P_SC_In      = readFloatArg("P_SC_In",args)
     
-    n_sc=3 #supercap-elementtien määrä
+    
 
-    E_Max_SC     = readFloatArg("$E_Max_SC",args)
-    if E_Max_SC == 0:
-        E_Max_SC = E_SC
-        args["$E_Max_SC"] = timedArg(E_Max_SC)
-        E_SC=0
+    # E_Max_SC     = readFloatArg("$E_Max_SC",args)
+    # if E_Max_SC == 0:
+    #     E_Max_SC = E_SC
+    #     args["$E_Max_SC"] = timedArg(E_Max_SC)
+    #     E_SC=0
    
-    V_Max_SC     = readFloatArg("$V_Max_SC",args)
-    if V_Max_SC == 0:
-        V_Max_SC = V_SC
-        args["$V_Max_SC"] = timedArg(V_Max_SC)
-        V_SC=0
-    
-    n_sc = 3
+    #  V_Max_SC     = readFloatArg("$V_Max_SC",args)
+    #  if V_Max_SC == 0:
+    #      V_Max_SC = V_SC
+    #      args["$V_Max_SC"] = timedArg(V_Max_SC)
+    #      V_SC=0
+
+    n_sc=3 #supercap-elementtien määrä
     C1 = 0.3 #TUT /NA supercap
+    V_Max_SC= 1.2 * n_sc
+    E_Max_SC= C1/2 * V_Max_SC * V_Max_SC /n_sc
     
-    V_SC1= V_SC/n_sc
-    vuoto = np.power(10,(V_SC1 - 1.06)/0.14-7) * V_SC* dt #TUT /NA supercap
+    V_SC1 = np.sqrt(2/C1 * E_SC /n_sc)
+
+    #V_SC1= V_SC/n_sc
+    Pvuoto = np.power(10,(V_SC1 - 1.06)/0.14-7) * V_SC1 * n_sc #TUT /NA supercap
     
     ######################
     #  E=1/2 C U*2
@@ -344,18 +387,24 @@ def NF_Supercap(args, node, draw=False, dt=60): #PIKATESTI...
     #  U_u = np.sqrt(2/C * (E_u -E_i) + U_i*U_i)
     ######################
 
-    dE = (P_SC_In - vuoto - P_SC_Out) * dt 
-
+    dE = (P_SC_In - Pvuoto - P_SC_Out) * dt 
+    
+    # print("E",E_SC,"dE",dE,"PIn",P_SC_In,"Pv",Pvuoto,"Pout",P_SC_Out,"V",V_SC)
     if -1 * dE < E_SC:
-        V_SC1 = np.sqrt(2 / C1 * dE/ n_sc + V_SC1 * V_SC1)
+        E_SC +=  dE
+        E_SC = min(E_SC , E_Max_SC)
+        V_SC1 = np.sqrt(2 / C1 * E_SC/ n_sc)
     else: 
         V_SC1 = 0
-    
-    E_SC +=  dE
+        E_SC = 0
+
     #E_SC = min(E_SC,1000)
     E_SC = max(E_SC,0)
     V_SC = max(V_SC1 * n_sc,0)
     
+    #print("E",E_SC,"dE",dE,"PIn",P_SC_In,"Pv",Pvuoto,"Pout",P_SC_Out,"V",V_SC)
+    #print()
+   
     args["E_SC"]=timedArg(E_SC)
     args["V_SC"]=timedArg(V_SC)
     return args
@@ -412,15 +461,23 @@ def NF_EHarvester(args, node, draw=False,dt=60):
     OnState_EHarvester = (E_Batt+E_SC)>0 
 
     if (V_PV>0) and (not OnState_EHarvester) and OnState_Main: #(PV only)
-        P_SC_In = P_PV_Out*dt*0.8 #V_PV*.01 
+        if V_PV > V_SC:
+            I_PV = P_PV_Out / V_PV
+            P_SC_In = I_PV*(V_PV-V_SC)*dt*0.8 #V_PV*.01 
+        else:
+            P_SC_In=0
 
 
     if OnState_Main and OnState_EHarvester:
-        P_SC_In = P_PV_Out*dt*0.8 
+        if V_PV > V_SC:
+            I_PV = P_PV_Out / V_PV
+            P_SC_In = I_PV*(V_PV-V_SC)*dt*0.8 #V_PV*.01 
+        else:
+            P_SC_In=0
 
         P_Batt=0.0
         P_SC_Out=0.0
-        P_self=0.005
+        P_self=0.000002
 
         P_rem = P_To_Reg + P_self #Harvesterin viemä virta...??
         P_SC_Max=0.07
@@ -440,7 +497,7 @@ def NF_EHarvester(args, node, draw=False,dt=60):
         P_To_Reg = P_Batt + P_SC_Out -P_self
 
         TotalEnergy = E_SC + E_Batt - P_To_Reg * dt
-        Emax=1000
+        Emax=.2
         if E_SC < 0.2*Emax:
             PowerLowAlert=True
         else: 
