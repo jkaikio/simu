@@ -1,3 +1,13 @@
+######################
+# library for GRAPHS
+# Classes and functions that you can use for representation, visualisation, 
+# or calculation / simulation of functionalities through GRAPH-relationships between items
+#
+# (c) Janne Aikio, 2018
+# janne.aikio@vtt.fi
+# jkaikio@gmail.com
+#
+#####################
 import cv2
 import numpy as np
 from random import shuffle
@@ -6,19 +16,23 @@ import threading
 import pickle
 
 
-def Vlen(V):
+def Vlen(V): 
+    #Length of vector V
     vlen=V[0]*V[0]+V[1]*V[1]
     return np.sqrt(vlen)
 
-def Vlen2(V):
+def Vlen2(V): 
+    #Length of vector v squared
     vlen=V[0]*V[0]+V[1]*V[1]
     return vlen
 
-def Vangle(v):
+def Vangle(v): 
+    # returns angle of a vector 
     return np.angle(v[0]+v[1]*1j,deg = True)
 
 
-def Normalize(vect):
+def Normalize(vect): 
+    #returns normalized vector of vect
     x=vect[0]
     y=vect[1]
     if (y==0) and (x==0):
@@ -28,13 +42,15 @@ def Normalize(vect):
         v=np.array([x/r, y/r])
     return v
 
-def Orthonormal(vi):
+def Orthonormal(vi): 
+    #Returns orthonormal vector to vi
     v=Normalize(vi)
     V=v[0]+v[1]*1j
     Vo=np.exp(np.pi*0.5j)*V
     return np.array([np.real(Vo), np.imag(Vo)])
 
-def potential(dx,dy, mode="normal", scale=1.0):
+def potential(dx,dy, mode="normal", scale=1.0): 
+    #Old potential function 
     #dx=dX[0]
     #dy=dX[1]
     r2 = dx*dx + dy*dy
@@ -56,7 +72,8 @@ def potential(dx,dy, mode="normal", scale=1.0):
 def sigmoid(z):
     return 1.0/(1.0+np.exp(-z))
 
-def PotentialSize(dX, size=10, repulsion = True,scale=1.0):
+def PotentialSize(dX, size=10, repulsion = True,scale=1.0): 
+    #interaction potential between nodes
     ro = Vlen(dX)
     dx=Normalize(dX)
 
@@ -91,34 +108,59 @@ def PotentialSize(dX, size=10, repulsion = True,scale=1.0):
      
     return p*dx*scale
 
+
+
+
+
+
+
+
 ########################################################################################
 #       
-#       #   #
+#       #   #  
 #       ##  #
 #       # # #
 #       #  ##
 ########################################################################################
+
+# NODE OBJECTS - basic building blocks of graph
+#  * including possibility to add payload functionalities in "self.cargo"
+#  * independency form edges and graphs maximised - can be in several graphs simultaneously
+#  * drawing of nodes & defining geometries & modes of drawing
+#  * text based UI 
+#  * 
+
 class node():
+    # Defines node objects in graph - independent of the graph or edges
     def __init__(self,x,y):
-        self.x = x
+        self.x = x                  # position coordinates x, y
         self.y = y
-        self.cargo = {}
-        self.color = (0,0,0)
-        self.tontinrajat=[]
-        self.BB =np.array([0,0,0,0])
-        self.image = None
-        self.pot=np.array([0.0,0.0])
+        self.cargo = {}             # cargo room for the node - can be used to store arguments, cargo function, etc.
+        self.color = (0,0,0)        # ... the color of node used in graphics
+        self.tontinrajat=[]         # point cloud defining the borders between nodes . corners of the polygon
+        self.BB =np.array([0,0,0,0]) #Bounding box - rectangular limits of node's space
+        self.image = None           # image used in graphical representations
+        self.pot=np.array([0.0,0.0]) # potential vector used for graph self-arrangement
         self.highlighted = False
-        self.maximized=False
-        self.label = ""
-        self.size =20
-        self.fixed = False
-        self.mximsize=1.0
-        self.message=""
+        self.maximized=False        # activation of node
+        self.label = ""             # label for identification and visualisation  
+        self.size =20               # size used in potential vector calculation and visualisation
+        self.fixed = False          # not moving automatically - fixed positions of node
+        self.mximsize=1.0           # maximized-image size parameter
+        self.message=""             # message shown in visualisation (NOT YET IMPLEMENTED)
+
+
+
+    #BOUNDING BOX OF NODE
 
     def BoundingBoxSet(self):
+        # Returns rectangular Bounding box - x and y limits of the node  
+        # - either determined by the size variable 
+        # ... or the "tontinrajat" point cloud determining 
+        # the polygonal area around the node where the node is the closest node of a point
+
         BB=np.array([999999999,-999999999,999999999,-999999999])
-        if self.tontinrajat == []:
+        if self.tontinrajat == []: #no tontinrajat point cloud available - using size instead
             BB[0]=self.x-self.size
             BB[1]=self.x+self.size
             BB[2]=self.y-self.size
@@ -126,7 +168,7 @@ class node():
             self.BB = BB
             return self.BB
 
-        for P in self.tontinrajat:
+        for P in self.tontinrajat: # tontinrajat point cloud available
             if BB[0] > P[0]: BB[0] = P[0]
             if BB[1] < P[0]: BB[1] = P[0]
             if BB[2] > P[1]: BB[2] = P[1]
@@ -135,6 +177,7 @@ class node():
         return self.BB
 
     def BBinImage(self,scale=1,cent=np.array([0,0])):
+        #Returns bounding box mapped to an image - with geometry scaling of scale and centered in cent
         BBi = self.BoundingBoxSet()
         BBi[0] = int((BBi[0]-cent[0])*scale)
         BBi[1] = int((BBi[1]-cent[0])*scale)
@@ -142,16 +185,44 @@ class node():
         BBi[3] = int((BBi[3]-cent[1])*scale)
         return BBi
 
+
+
+
+    #UPDATE NODE
+
     def update(self,draw=False, dt=60):
+        # updates the node functionalities
+        # so far only "cargo function" update  with arguments, draw request, and time step info
         if "Function" in self.cargo:
             self.runCargoFun(self.cargo["Function"], self.cargo["Args"],draw=draw,dt=dt)
         
     
     def runCargoFun(self,CargoFun,args,draw=False,dt=60):
+        # run cargo function - a function given in "self.cargo" dictionary
         if CargoFun is not None:
             self.cargo["Args"]= CargoFun((args), node = self,draw = draw, dt=dt)
 
+
+
+
+    #UI - TEXT UI FOR NODE
+
     def writeArgs(self,im, scale=1, cent=np.array([0,0]),GR=None):
+        # Opens a text UI at the node - called with a shift & left mouse button down from graph
+        # Text UI handles: 
+        # a) updates/ adds arguments in cargo dict: 
+        #       usage: <argname>=<value>
+        #       example: P=30.0
+        #       existing arguments can be browsed with up/down arrow keys
+        #       important to use "=""
+        # b) handles specific commands: 
+        #       usage: <medium>:<command> 
+        #       example: Size:0.9
+        #       example2: py:print("Hello World")
+        #       important to use ":"
+
+
+        #User interface
         x= int((self.x-cent[0])*scale)
         y= int((self.y-cent[1])*scale)
 
@@ -174,10 +245,12 @@ class node():
                     break
         if txt=="":
             return
+
+        # Handling the results, if self.cargo contains "Arg" 
         if "Args" in self.cargo:
             i=txt.find("=")
             j=txt.find(":")
-            if j != -1:
+            if j != -1: #COMMANDS handling
                 medium=txt[:j]
                 command=txt[j+1:]
                 print(self.label+": "+medium+":"+command)
@@ -220,7 +293,7 @@ class node():
                         cfunct=command[:k]
                         cargs=command[k:]
                         crunpy(cfunct,cargs,self)
-            elif i != -1:
+            elif i != -1:   #Arguments handling 
                 label=txt[:i]
                 value=txt[i+1:]
                 print(self.label+":")
@@ -242,28 +315,33 @@ class node():
                         vtype=type(self.cargo["Args"][label][0])
                     print("NEW:",label,self.cargo["Args"][label],vtype)
                            
-            else:
+            else: # Add text argument
                 self.cargo["Args"]["Text"]=timedArg(txt) 
                 print("NEW Text:",self.cargo["Args"]["Text"])
-            
 
+
+
+
+    #DRAW NODE
 
     def drawNode(self,im, r=5, scale=1, cent=np.array([0,0]),label=False, logo=True):
-        #if "Function" in self.cargo:
-        #    self.runCargoFun(self.cargo["Function"], self.cargo["Args"],draw=True)
+        # Draw node to image "im", scaling geometry with scale and centered in cent
+        # label - flag: write self.label to image 
+        # logo - flag: show small round version of self.image
+        # if self.maximized - show content in self.image - toggled with control-mouseclick
 
-        x= int((self.x-cent[0])*scale)
+        x= int((self.x-cent[0])*scale) #node coordinates
         y= int((self.y-cent[1])*scale)
 
-        cv2.circle(im, (x,y),r,self.color,1,cv2.LINE_AA)
+        cv2.circle(im, (x,y),r,self.color,1,cv2.LINE_AA) #simplest representation of the node - little circle
 
-        if self.fixed:
+        if self.fixed: # draw little needle to hold node in place when fixed
             cv2.line(im,(x,y),(x-r,y-2*r),self.color,1,cv2.LINE_AA)
             cv2.circle(im, (x-r,y-2*r),int(r/2),self.color,-1,cv2.LINE_AA)
             
         
-        
-        if logo and (self.image is not None) and not self.maximized:        
+        if logo and (self.image is not None) and not self.maximized:  
+            # show logo - little round version of self.image 
             size=(8*int(r),8*int(r))
             f = np.zeros((size[1],size[0],4), np.uint8)
             f4 = np.zeros((size[1],size[0]), np.uint8)
@@ -297,7 +375,10 @@ class node():
             #else:
             #    img[X1:X1+l,X0:X0+w] = addedimage
             #    cv2.rectangle(img, (X0,X1),(X0+w,X1+l),self.color,2)
-        if self.maximized and (self.image is not None):
+
+
+        if self.maximized and (self.image is not None): 
+            # show self.image in maximized version - size controlled by self.mximsize - can be changed via text-ui
             size=(int(len(im[0])/2*self.mximsize),int(len(im)/2*self.mximsize))
             scy=size[0]/(len(self.image[0]))
             scx=size[1]/(len(self.image))
@@ -318,7 +399,7 @@ class node():
             cv2.rectangle(im,x0,x1,(230,200,200),2)
 
 
-        if label:
+        if label: # print self.label - different variations depending on wheter tontinrajat (borders-view) in use or not
             BBi=self.BBinImage(scale=scale,cent=cent)
             ts=cv2.getTextSize(self.label,cv2.FONT_HERSHEY_PLAIN,1.2,3)
             x=int((BBi[0]+BBi[1]-ts[0][0])/2)
@@ -337,12 +418,17 @@ class node():
             else:
                 cv2.putText(im,self.label,(x,y),cv2.FONT_HERSHEY_PLAIN,1.2,color,2)
 
-        # if message:
+        # if message: # present message if defined ... vaiheessa
         #     if self.message = "": return
-            
 
+
+
+    # DEFINING AND DRAWING OF BORDERS BETWEEN NODES
     
-    def CenterLine(self,other):
+    def CenterLine(self,other): 
+        # return center line: centerpoint eX between two nodes 
+        # and direction vector eV perpendicular to a vector from self to other node
+        # function needed for defining borders between nodes
         n1= self
         n2= other
         X1= np.array([n1.x,n1.y])
@@ -353,6 +439,7 @@ class node():
         return eX, eV
 
     def drawCenterLine(self, other, im,scale=1,ln=10,cent=np.array([0,0])):
+        #visual representation of a centerline - was used during development of border finding...
         n1= self
         n2= other
         colorconn=(int(n1.color[0]/2+n2.color[0]/2),\
@@ -372,6 +459,7 @@ class node():
         cv2.line(im,(x1,y1),(x2,y2),colorconn,1)
     
     def arrangerajat(self): 
+        # Arranges "self.tontinrajat" point cloud in clockwise order
         i=0
         tr=[]
         for t in self.tontinrajat[:-1]:
@@ -396,6 +484,10 @@ class node():
 
     
     def DrawRajat(self,im, r=5, scale=1, cent=np.array([0,0]), mask=False,borders=False):
+        # Draws the borders between nodes defined by self.tontinrajat
+        #   * mask-flag is used in "liitä kuva"-attach image -function to mask the self.image to fit in the polygon
+        #   * borders -flag draws only borders
+        #   * draws to image "im" with scale "scale" with centerpoint "cent"
         tr=[]
         for t in self.tontinrajat:
             tr.append((t-cent)*scale)
@@ -410,7 +502,11 @@ class node():
         return im
 
     def liitaKuva(self,img, sc=1,c=np.array([0,0]), fullpict=False, aspectlock=True):
-        
+        # Attaches picture self.image within the borders of the node
+        #   * fullpict-flag - show square picture within the bounding box
+        #   * aspectlock-flag - stretch picture dimensions to fit the bounding box - True: dont let the image stretch, crop instead  
+        # draw to image "img" with scale "sc" with center point "c"
+
         BBi=self.BBinImage(scale=sc,cent=c)
         size=(BBi[1]-BBi[0],BBi[3]-BBi[2])
         
@@ -447,32 +543,11 @@ class node():
             cv2.rectangle(img, (X0,X1),(X0+w,X1+l),self.color,2)
         return img
 
-    #def mouseaction(self,event, x,y,flags,param):
-        #GR = param
-        #print("Hello")
-    #    if event == cv2.EVENT_LBUTTONDOWN:
-    #        self.LBUTTONDOWN(x,y)
-    #    
-    #    if event == cv2.EVENT_RBUTTONDOWN:
-    #        self.RBUTTONDOWN(x,y)    
+ 
 
-        '''
-        if event == cv2.EVENT_LBUTTONUP:
-            self.LBUTTONUP(x,y)
 
-        if event == cv2.EVENT_MOUSEMOVE:
-            self.MOUSEMOVE(x,y)
-        '''
 
-    #def LBUTTONDOWN(self,x,y):
-    #    pass
-    #
-    #def RBUTTONDOWN(self,x,y):
-    #    self.maximized = False
-    #    cv2.destroyWindow("Maximized")
-    #    cv2.waitKey(1)
 
-            
 
 ########################################################################################
 #       
@@ -484,7 +559,10 @@ class node():
 ########################################################################################
 
                    
-            
+# EDGE OBJECTS
+# connection between two nodes: node1 / node2 
+#  * implicitly directional - node1 to node2
+#  * transfers arguments between nodes if "self.cargo" payload functionalities used -  self.label = argument key          
 
  
 
@@ -495,16 +573,19 @@ class edge():
         self.label = ""
         self.labelpos = 0
 
-    def update(self,draw=False): #SIMPLE SWITCH FOR NOW... ei toimi useamman noden ryppäissä...
+    def update(self,draw=False): 
+        # Update of edge
+         
         if ("Args" in self.node1.cargo) and ("Args" in self.node2.cargo):
-            
+            #Transfers arguments between nodes when self.cargo payload functions used 
+            #   * Args can be single valued or double valued lists - then the second value [1] carries time stamp or other priority label   
             n1a = [None,0]
             n2a = [None,0]
             if self.label in self.node1.cargo["Args"]:
                 n1a=self.node1.cargo["Args"][self.label]
             if self.label in self.node1.cargo["Args"]:
                 n2a=self.node2.cargo["Args"][self.label]
-            if (type(n2a) is list) & (type(n2a) is list):
+            if (type(n2a) is list) & (type(n2a) is list): 
                 if n1a[1]>n2a[1]: n2a=n1a
                 else: n1a=n2a
 
@@ -513,6 +594,9 @@ class edge():
         
 
     def drawEdge(self,im,scale=1,cent=np.array([0,0]), label=False):
+        # Draw edge between nodes
+        #  * label-flag: print label at self.labelpos - a relative position somewhere between node1 and node2 - labelpos is randomized if not given
+        # draws edge in image "im" with geometry scaling "scale" and center point "cent"
         n1= self.node1
         n2= self.node2
         colorconn=(int(n1.color[0]/2+n2.color[0]/2),\
@@ -532,6 +616,10 @@ class edge():
             s=1-self.labelpos
             cv2.putText(im,self.label,(int(x1*t+x2*s),int(y1*t+y2*s)),cv2.FONT_HERSHEY_PLAIN,1.2,colorconn,2)
 
+
+
+
+
 ########################################################################################
 #       
 #        ####
@@ -541,31 +629,38 @@ class edge():
 #        ####  
 ########################################################################################
    
-
+# GRAPH OBJECT
+#  * graph is a collection of nodes and edges (each edge connecting 2 nodes) 
+#  * this is a set of classes and functions to generate, manipulate, present and use graphs for calculation/simulations  
 
 class graph():
     def __init__(self,nodes, edges):
-        self.nodes = nodes
-        self.edges = edges
-        self.imgsize = np.array([500,500,3])
-        self.BB =self.BoundingBoxSet()
-        self.bgcolor=(255,255,255)
+        self.nodes = nodes      # nodes in graph
+        self.edges = edges      # edges in graph
+        self.imgsize = np.array([500,500,3]) # image size for graphical presentation
+        self.BB =self.BoundingBoxSet() # bounding box - rectangular box containing all nodes
+        self.bgcolor=(255,255,255)  # background color of graphics
         self.cols={}
-        self.highlightednode =None
-        self.hDx = 0
-        self.hDy = 0
-        self.mousememory = {}
-        self.majorUPD = True
-        self.controlpanelflags={"nodes":True,"logos":True,"labels":True,"edges":True,"elabels":False,
-                                "labelmap":False, "rajat":False,"aspectlock":True,"color":False,"move":True,"update":True,"video":False}
-        self.cpmargin =70
-        self.cpgeom=[0,0]
-        self.file ="Graafi.GR"
-        self.updrounds = 1
-        self.dt=60
-        self.functions={}
+        self.highlightednode =None  #used in graphical interface
+        self.hDx = 0                # used in graphical interface
+        self.hDy = 0                # used in graphical interface
+        self.mousememory = {}       # used in graphical interface to store mouse events/data
+        self.majorUPD = True        # flag to recalculate node borders
+        self.controlpanelflags = {"nodes":True,"logos":True,"labels":True,"edges":True,"elabels":False,
+                                "labelmap":False, "rajat":False,"aspectlock":True,"color":False,"move":True,"update":True,"video":False} # flags represented by boxes in GUI
+        self.cpmargin =70       # margins for GUI
+        self.cpgeom=[0,0]   
+        self.file ="Graafi.GR"  # filename for saving the graph with pickle
+        self.updrounds = 1      # how many rounds update function takes in threaded update calculation before updating graphics - parameter for running simulations etc. 
+        self.dt=60              # timestep parameter for update
+        self.functions={}       # dictionary of functions that can be summoned/attached to nodes via self.cargo  - through text UI
+
+
+
+    #GEOMETRY / BOUNDING BOX of Graph
 
     def BoundingBoxSet(self):
+        #set bounding box - a rectangular box containing all nodes
         BB=np.array([999999999.0,-999999999.0,999999999.0,-999999999.0])
         for n in self.nodes:
             if BB[0] > n.x: BB[0] = n.x
@@ -575,8 +670,11 @@ class graph():
         self.BB=BB
         return self.BB
 
+    
+    # DRAW GRAPH / OLD DONT USE ;)
 
     def DrawGraph(self):
+        # OLD SIMPLE DRAW GRAPH => use DrawGraph2 instead
         img=np.ones(self.imgsize, dtype = np.uint8)*255
         
         BB=self.BoundingBoxSet()
@@ -597,7 +695,12 @@ class graph():
         return img
     
 
+    # USER INTERFACE FOR GRAPH, CP = ControlPanel 
+
     def DrawControlPanel(self,img):
+        #Draws simple control panel to right margin of the graph image "img"
+        # * boxes automatially associated with self.controlpanelflags & "zoom"/graph interaction box at the lower right corner
+        # 
         w=self.cpmargin
         marg=15
         hi = self.imgsize[0]
@@ -630,6 +733,8 @@ class graph():
         self.cpgeom=[h,marg]
     
     def ChangeCpInXY(self,x,y):
+        # Toggles flags in controlpanel 
+        #  * automatically toggles self.controlpanelflag associated with a box in x,y-coordinates - see "DrawControlPanel" function 
         cpdkeys= list(self.controlpanelflags.keys())
         h=self.cpgeom[0]
         marg=self.cpgeom[1]
@@ -641,10 +746,9 @@ class graph():
             self.controlpanelflags[cpdkeys[i]] = not self.controlpanelflags[cpdkeys[i]]
             return True
         return False
-
-
     
     def getControlPanelFlags(self):
+        #Returns controlpanelflags needed in DrawGraph2 - function
         if "nodes" in self.controlpanelflags:
             nodes = self.controlpanelflags["nodes"]
         else: nodes = False
@@ -672,7 +776,11 @@ class graph():
     
         return nodes,logos,labels,edges,elabels,labelmap,rajat,aspectlock
 
+
+    # RUNNING THE GRAPH CODES
+
     def RunWithControlPanel(self, video = False):
+        # Runs Graph with controlpanel - USE RunThreaded for better performance!!!
         if video: self.controlpanelflags["video"] = True
         vid=False
         cv2.startWindowThread()
@@ -706,9 +814,38 @@ class graph():
         cv2.destroyWindow("Graafi")
         cv2.waitKey(1)
     
-    
+
+
+
 
     def RunThreaded(self,video=False,updrounds=10):
+        # RUN the GRAPH with this function !!!!
+        # RUN the GRAPH with this function !!!!
+        # RUN the GRAPH with this function !!!!
+        # RUN the GRAPH with this function !!!!
+        # RUN the GRAPH with this function !!!!
+        
+        # <graphname>.RunThreaded()
+        # GR.RunThreaded(updrounds=30)
+        
+        #  * video -flag: start recording a video immediately with start: video output: output.avi
+        #  * updrounds -argument: number of update-rounds the code takes in separate thread before updating the graphics  - bigger number = speed in calculations
+        #
+        #  * updates the functions in nodes and edges through "GRUpdateThread" function which calls the self.UpdateAll -function
+        #  * updates graph geometry through self.MoveAll -function
+        #  * updates graphics through DrawGraph2 -function 
+        #
+        #  * mouse interface through picture: 
+        #       - Arrange nodes:
+        #           - drag nodes with mouse left button 
+        #           - pin nodes with (right+)left click => non-moving nodes
+        #           - alt + left button drag changes the size of node         
+        #       - zoom window with mouse left button in [z] box
+        #       - use graphical control panel flags in [ ] boxes in right margin - see self.controlpanelflags -dictionary
+        #       - launch text UI with shif-click for nodes and [z] box for GRAPH (use up-down arrow for some options - or write commands directly)
+
+        # * EXIT window through ESC 
+
         self.updrounds=updrounds
         if video: self.controlpanelflags["video"] = True
         upd=False
@@ -719,7 +856,7 @@ class graph():
         cv2.setMouseCallback('Graafi',self.mouseaction)
         self.UpdateAll()
         while True:
-            
+            # UPDATE: Threaded update of node/edge functionalities
             if "update" in self.controlpanelflags:
                 if self.controlpanelflags["update"]:
                     if not upd:
@@ -730,7 +867,8 @@ class graph():
                         GRUpd=GRUpdateThread(1,self,nrounds=self.updrounds)
                         GRUpd.start()                        
                 else: upd= False
-                    
+
+            # MOVE: Automatially arrange nodes with "node potentials"        
             if "move" in self.controlpanelflags:
                 if self.controlpanelflags["move"]:
                     self.MoveAll(sc=1)
@@ -740,8 +878,10 @@ class graph():
                     #    mov=True
                 else: mov = False
             
+            #DRAW
             img = self.DrawGraph2(cp = True)#rajat=False, edges=True,labels=True, nodes =True, elabels=False, labelmap=True,logos=True)
             
+            #Video
             if "video" in self.controlpanelflags:
                 if self.controlpanelflags["video"]:
                     if not vid:
@@ -757,15 +897,25 @@ class graph():
 
             cv2.imshow("Graafi",img)
             inp= cv2.waitKey(1)
-            if inp==27:
+            if inp==27: # EXIT WITH ESC
                 break
+        
+        #CLEANUP         
         self.controlpanelflags["move"]=False
         self.controlpanelflags["update"]=False
         cv2.destroyWindow("Graafi")
         cv2.waitKey(1)
  
 
+
+
+
+
+    # DRAWING THE GRAPH
+
     def GRImageParams(self):
+        # Returns image parameters required for several  other draw functions => to be changed to lookup!!
+        # * returns image scale, center point, and bounding box 
         margi=50
         rightmargin = self.cpmargin
         BB=self.BoundingBoxSet()
@@ -781,12 +931,29 @@ class graph():
         c[1]=BB[2]-margper2
         return sc,c,BB
 
+
+
+
     def DrawGraph2(self, rajat = False, nodes = True, edges=True,labels=False,elabels =False,labelmap=False,logos=True,cp=False):
-        if self.controlpanelflags["color"]:
+        # THIS IS THE MAIN FUNCTION TO DRAW GRAPHS!!!
+        # THIS IS THE MAIN FUNCTION TO DRAW GRAPHS!!!
+        # THIS IS THE MAIN FUNCTION TO DRAW GRAPHS!!!
+
+        # Arguments:
+        # * rajat-flag: calculate and draw borders between nodes
+        # * nodes -flag: show nodes
+        # * edges -flag: show edges
+        # * labels -flag: show labes for nodes
+        # * elabels -flag: show labels for edges
+        # * labelmap -flag: show graphical representation of which edge labels are mostly used in different parts of graph... 
+        # * logos -flag: show node logos - small round versions of node.image
+        # * cp -flag: use "control panel" - Note: overrides other flags with self.controlpanelflags!
+
+        if self.controlpanelflags["color"]: # recolor
             Recolor(self,colorscheme ="random")
             self.controlpanelflags["color"]=False
         
-        if "iszdx" in self.mousememory:
+        if "iszdx" in self.mousememory: #mouse related functionalities
             dx = self.mousememory.pop("iszdx",None)
             if not self.controlpanelflags["video"]:
                 self.imgsize[1] = self.imgsize[1] + dx
@@ -800,11 +967,12 @@ class graph():
                 self.majorUPD = True
             if "yi" in self.mousememory:
                 self.mousememory["yi"]=self.mousememory["yi"]+dy
-        if cp:
+
+        if cp: #if control panel in use, get parameters from self.controlpanelflags
            nodes,logos,labels,edges,elabels,labelmap,rajat,aspect = self.getControlPanelFlags() 
         else: aspect =False
             
-
+        # CREATE IMAGE    
         img=np.ones(self.imgsize, dtype = np.uint8)
         img[:,:,0]=self.bgcolor[0]
         img[:,:,1]=self.bgcolor[1]
@@ -812,7 +980,7 @@ class graph():
 
         sc,c,BB = self.GRImageParams()
         
-        if rajat:
+        if rajat: # Recalculate and show borders between nodes / node area view;  [r] - box in control panel
             if self.majorUPD:
                 self.GRRajat()
                 self.majorUPD = False   
@@ -831,34 +999,42 @@ class graph():
         else:
             self.majorUPD = True
 
-        if labelmap:
+        if labelmap: #Show map of most popular edge-labels
             self.DrawLabelMap(img,heatmap=True)   
 
-        if edges:
+        if edges: #Show edges
             for e in self.edges:
                 e.drawEdge(img,scale=sc, cent=c, label = elabels)
-        if nodes:
+        if nodes: #Show nodes
             for n in self.nodes:
                 if not rajat: n.tontinrajat=[]
                 n.drawNode(img,scale=sc, cent=c,label=labels,logo=logos)  
 
-        if cp: self.DrawControlPanel(img)  
+        if cp: self.DrawControlPanel(img)  #Draw control panel
 
-        if "NodeWrite" in self.mousememory:
+        if "NodeWrite" in self.mousememory: #Text UI for node
             n= self.mousememory.pop("NodeWrite",None)
             n.writeArgs(img,scale = sc, cent=c, GR=self)
 
-        if "GRWrite" in self.mousememory:
+        if "GRWrite" in self.mousememory: #Text UI for graph
             self.mousememory.pop("GRWrite",None)
             self.WriteCommand(img)
         
-        if not self.controlpanelflags["video"]:
+        if not self.controlpanelflags["video"]: #Zoom / Graph-UI -tag in lower right corner
             x0 = (self.imgsize[1]-60, self.imgsize[0]-60)
             x1 = (self.imgsize[1]-50, self.imgsize[0]-50)
             cv2.rectangle(img,x0,x1,(130,100,100),-1)
             cv2.rectangle(img,x0,x1,(230,200,200),2)
-        return img
+        return img # done!
     
+
+
+    # CALCULATE THE BORDERS BETWEEN NODES
+    # * get cool dashboard look through defining borders between nodes
+    # * defines polygonal areas in "canvas" where the points are closest to the current node
+    # * this is relatively heavy calculation.... 
+    # * generates "node.tontinrajat" point cloud for each node
+
     def GRRajat(self):
         sc,c,BB = self.GRImageParams()
         for n in self.nodes:
@@ -901,9 +1077,51 @@ class graph():
         #Arrange and clean area cornerpoints
         for n in self.nodes:
             n.arrangerajat()
-           
+
+
+
+    def cornernodes(self,BB):
+        # Needed in defining borders between nodes - associates Graph-image corners to node borders
+        corners = [np.array([BB[0],BB[2]]),np.array([BB[0],BB[3]]),\
+                   np.array([BB[1],BB[2]]),np.array([BB[1],BB[3]]) ] 
+        cnodes= [self.nodes[0],self.nodes[0],self.nodes[0],self.nodes[0]]
+        ln = [9999999999,999999999999,99999999999,9999999999]      
+        for n in self.nodes:
+            for i in range(4):
+                ls=Vlen2(corners[i]-np.array([n.x,n.y]))
+                if ls < ln[i]:
+                    ln[i]=ls
+                    cnodes[i]=n
+        for i in range(4):
+            cnodes[i].tontinrajat.append(corners[i])
+
+
+    def imgedges(self,BB):
+        #Handling image edges and corners in defining borders between nodes
+        # * returns image edges as centerLine class objects ("imgEdges"-list) 
+        # * returns image corners as nodes ("iens"-list)
+        imgEdges=[]
+        iens=[]
+        iens.append(node(BB[0],BB[2]))
+        iens.append(node(BB[0],BB[3]))
+        iens.append(node(BB[1],BB[3]))
+        iens.append(node(BB[1],BB[2]))
+
+
+        imgEdges.append(centerline(np.array([BB[0],BB[2]]),np.array([0,1]),iens[0],iens[1]))
+        imgEdges.append(centerline(np.array([BB[0],BB[2]]),np.array([1,0]),iens[0],iens[3]))
+        imgEdges.append(centerline(np.array([BB[1],BB[3]]),np.array([0,-1]),iens[2],iens[3]))
+        imgEdges.append(centerline(np.array([BB[1],BB[3]]),np.array([-1,0]),iens[2],iens[1]))
+
+        return imgEdges, iens
+
+
+    #EDGE-LABELMAP
+
     def EdgeLabelMap(self, resolution = 10):
-        #BB=self.BoundingBoxSet()
+        #Calculates a map of most popular edge-labels in different parts of the graph
+        # * argument: resolution = N: N times N grid is used for the map
+        # returns "me" - "map of edges" or something...  
         sc,c,BB = self.GRImageParams()
         mappxx=(BB[1]-BB[0])/resolution
         mappxy=(BB[3]-BB[2])/resolution
@@ -928,11 +1146,11 @@ class graph():
         return me
             
     def DrawLabelMap(self, im, resolution =10,heatmap=False):
-        
+        # Graphical representation of EdgeLabelMap
+        # draw to image im
+        # resolution - the resolution of the labelmap
+        # heatmap - represent most common labels with colors
         me = self.EdgeLabelMap(resolution = resolution)
-        #sc,c,BB = self.GRImageParams()
-        #mx=int((BB[1]-BB[0])/resolution*sc)
-        #my=int((BB[3]-BB[2])/resolution*sc)
         mx=int((len(im[0])-self.cpmargin)/resolution) 
         my=int(len(im)/resolution)
         bx=int(mx/3)
@@ -953,39 +1171,11 @@ class graph():
 
 
     
-    def cornernodes(self,BB):
-        corners = [np.array([BB[0],BB[2]]),np.array([BB[0],BB[3]]),\
-                   np.array([BB[1],BB[2]]),np.array([BB[1],BB[3]]) ] 
-        cnodes= [self.nodes[0],self.nodes[0],self.nodes[0],self.nodes[0]]
-        ln = [9999999999,999999999999,99999999999,9999999999]      
-        for n in self.nodes:
-            for i in range(4):
-                ls=Vlen2(corners[i]-np.array([n.x,n.y]))
-                if ls < ln[i]:
-                    ln[i]=ls
-                    cnodes[i]=n
-        for i in range(4):
-            cnodes[i].tontinrajat.append(corners[i])
-
-
-
-    def imgedges(self,BB):
-        imgEdges=[]
-        iens=[]
-        iens.append(node(BB[0],BB[2]))
-        iens.append(node(BB[0],BB[3]))
-        iens.append(node(BB[1],BB[3]))
-        iens.append(node(BB[1],BB[2]))
-
-
-        imgEdges.append(centerline(np.array([BB[0],BB[2]]),np.array([0,1]),iens[0],iens[1]))
-        imgEdges.append(centerline(np.array([BB[0],BB[2]]),np.array([1,0]),iens[0],iens[3]))
-        imgEdges.append(centerline(np.array([BB[1],BB[3]]),np.array([0,-1]),iens[2],iens[3]))
-        imgEdges.append(centerline(np.array([BB[1],BB[3]]),np.array([-1,0]),iens[2],iens[1]))
-
-        return imgEdges, iens
 
     def UpdateAll(self,draw=False):
+        # update functionalities carried by edges and nodes
+        # draw -flag = update graphics for drawing 
+        # note: updates nodes with dt- timestep argument defined by self.dt
         for e in self.edges:
             e.update(draw=draw)
         for n in self.nodes:
@@ -993,23 +1183,29 @@ class graph():
     
 
     def MoveAll(self,  sc=1, scAuto=True):
+        # move nodes: auto-arranging of nodes through potentials
+        # * attractive potential if connected with edge
+        # * repulsive potential if not connected
         if scAuto:
             sc=5.0/len(self.nodes)*sc
-        self.ClearPot()
+        self.ClearPot() 
         self.PotNodeSize(sc=sc)
         #self.PotNodePoints(sc=sc)
         self.StepAllPot()
         self.majorUPD=True
 
     def ClearPot(self):
+        # clear potentials...
         for n in self.nodes:
             n.pot=np.array([0.0,0.0])
     
     def ResetNodeSizes(self):
+        # set default size parameter for all nodes
         for n in self.nodes:
             n.size=20
     
     def PotNodePoints(self, sc=1):
+        # OLD CODE DRIVING OLD POTENTIAL...
         i=0
         for n in self.nodes[:-1]:
             i+=1
@@ -1025,6 +1221,12 @@ class graph():
             nn.pot+=pot
 
     def PotNodeSize(self, sc=1):
+        # Calculate interaction potentials between nodes
+        # sc - parameter scales the potential magnitude (lenght of step per round)
+        # * attractive potential between nodes connected with edge
+        # * repulsive potential between all nodes
+        # * node.size -parameter used to separate nearfield (repulsive) and midfield (attractive or repulsive) of potential
+        # * far-field mildly attractive to keep nodes together... 
         i=0
         for n in self.nodes[:-1]:
             i+=1
@@ -1044,22 +1246,27 @@ class graph():
             nn.pot-=pot
 
     def StepAllPot(self):
+        # take a step defined by potentials
         for n in self.nodes:
             if not n.fixed:
                 n.x+=n.pot[0]
                 n.y+=n.pot[1]
 
 
+
+
+    # MOUSE INTERACTIONS!!!
+
     def mouseaction(self,event, x,y,flags,param):
-        #GR = param
+        # mouseaction -function used by cv2 - e.g. in self.RunThreaded
         
         if event == cv2.EVENT_LBUTTONDOWN:
             
-            if flags == 33 or flags == 32:
+            if flags == 33 or flags == 32: # alt - click; mac / PC
                 self.altLBUTTONDOWN(x,y)
-            elif flags == 16 or flags == 17:
+            elif flags == 16 or flags == 17: # shift-click
                 self.shiftLBUTTONDOWN(x,y)
-            elif flags == 9:
+            elif flags == 9: #control -click
                 self.LBUTTONDBLCLK(x,y)
             else:
                 self.LBUTTONDOWN(x,y)
@@ -1084,12 +1291,14 @@ class graph():
 
 
     def altLBUTTONDOWN(self,x,y):
+        # Change node.size via alt-dragging
         found, n = self.NodeinXY(x,y)
         if found:
             sc,c,BB = self.GRImageParams()
             self.mousememory.update({"rnode":n, "xi":c[0] + x/sc ,"yi": c[1] + y/sc})
     
     def altLBUTTONUP(self,x,y):
+        # Change node.size via alt-dragging
         if "rnode" in self.mousememory:
             sc,c,BB = self.GRImageParams()
             dx = x/sc +c[0]-self.mousememory.pop("xi",None)
@@ -1100,43 +1309,51 @@ class graph():
 
     def LBUTTONDOWN(self,x,y):
         
+        # Zoom graph -window with [z]-box
         x0 = (self.imgsize[1]-60, self.imgsize[0]-60)
         x1 = (self.imgsize[1]-50, self.imgsize[0]-50)
         if (x0[0] <= x <= x1[0]) and (x0[1] <= y <= x1[1]):
             self.mousememory.update({"imsize":True, "xi":x ,"yi": y})
             return
+
+        # Control-panel area - change self.controlpanelflags
         if x > self.imgsize[1]-self.cpmargin:
             if self.ChangeCpInXY(x,y):
                 return
         
+        # Node dragging 
         found, n = self.NodeinXY(x,y)
-        
         if found:
             n.highlighted = not n.highlighted
             sc,c,BB = self.GRImageParams()
             self.highlightednode = n
             self.hdx= n.x - c[0] - x/sc
             self.hdy= n.y - c[1] - y/sc 
-    
+
+
     def LBUTTONDBLCLK(self,x,y):
+        # Maximize / use node function through node.maximized
         found, n = self.NodeinXY(x,y)
-        
         if found:
             n.maximized= not n.maximized
 
+
     def shiftLBUTTONDOWN(self,x,y):
+        # start Text UI for graph
         x0 = (self.imgsize[1]-60, self.imgsize[0]-60)
         x1 = (self.imgsize[1]-50, self.imgsize[0]-50)
         if (x0[0] <= x <= x1[0]) and (x0[1] <= y <= x1[1]):
             self.mousememory["GRWrite"]=True
             return
 
+        # start text UI for node
         found, n = self.NodeinXY(x,y)
-        
         if found:
             self.mousememory["NodeWrite"]=n
-    
+
+
     def LBUTTONUP(self,x,y):
+        #Resize image ends
         if "imsize" in self.mousememory:
             dx = x -self.mousememory.pop("xi")
             dy = y -self.mousememory.pop("yi")
@@ -1145,8 +1362,10 @@ class graph():
             #self.imgsize[0] = self.imgsize[0] + dx
             #self.imgsize[1] = self.imgsize[1] + dy
             return
-
+        
+        # Drag node ends
         self.highlightednode = None      
+
 
     def RBUTTONDOWN(self,x,y):
         #print(self.highlightednode, self.hdy, self.hdx, x, y)
@@ -1155,7 +1374,8 @@ class graph():
         self.highlightednode = None      
     
 
-    def MOUSEMOVE(self,x,y):        
+    def MOUSEMOVE(self,x,y):
+        #Change imagesize        
         if "imsize" in self.mousememory:
             dx = x -self.mousememory["xi"]
             dy = y -self.mousememory["yi"]
@@ -1164,6 +1384,7 @@ class graph():
             #self.imgsize[1] = self.imgsize[1] + dy
             return
 
+        #Move node
         if self.highlightednode is not None:
             #print(self.highlightednode, self.hdy, self.hdx, x, y)
             sc,c,BB = self.GRImageParams()
@@ -1174,6 +1395,8 @@ class graph():
  
 
     def NodeinXY(self,x,y):
+        #Check if there is a node under mouseclick
+        # * returns true and node, if node found
         ns=[]
         sc,c,BB = self.GRImageParams()
         for n in self.nodes:
@@ -1198,9 +1421,11 @@ class graph():
         return True, nx
     
     def WriteCommand(self,im ):
+        #Text user interface for GRAPH
         x= int(len(im[0])-70)
         y= int(len(im)-70)
 
+        #Graph user interface launch
         txt=UIWrite(im,x,y,color=self.bgcolor)
         if txt is None:
             i=0
@@ -1216,6 +1441,8 @@ class graph():
 
         if txt=="": return
         
+
+        # Interpret the text command
         i=txt.find("=")
         j=txt.find(":")
         if j != -1:
@@ -1260,7 +1487,9 @@ class graph():
                     cargs=command[k:]
                     crunpy(cfunct,cargs,self)
     
+
     def newNode(self):
+        # Generate new node in graph
         BB=self.BoundingBoxSet()
         n=node(np.random.random()*(BB[1]-BB[0])+BB[0],np.random.random()*(BB[2]-BB[1])+BB[1]) 
         n.cargo["node"]=n
@@ -1269,6 +1498,10 @@ class graph():
         self.nodes.append(n) 
 
     def edgesUpdate(self,label=""):
+        # Update edge connections based on keys in "Args"
+        # * label specifies argument key to be used to update specific edge connections 
+        # * if label ="" all connections will be updated
+
         edges=[]
         if label!="":
             for e in self.edges:
@@ -1299,15 +1532,19 @@ class graph():
                 
 
     def save(self):
+        # pickle dump - save graph as binary to file self.file
         file= open(self.file,"wb")
         pickle.dump(self,file)
         file.close()
 
 def loadGraph(filename="Graafi.GR"):
+        # load pickle dumped graph
         file=open(filename, "rb")
         loadedGraph=pickle.load(file)
         file.close()
         return loadedGraph
+
+
 ########################################################################################
 #       
 #       ##   ##
