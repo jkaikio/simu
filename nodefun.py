@@ -109,7 +109,7 @@ class Monitor():  #Template function
         tme=tme[0::self.every_nth]
         tme=tme[-self.w:]
 
-        
+
 
         ld=len(data[0])
         mxd=list(np.zeros(ld))
@@ -317,7 +317,9 @@ def NF_Supercap(args, node, draw=False, dt=60): #PIKATESTI...
     P_SC_Out     = readFloatArg("P_SC_Out",args)
     P_SC_Out_Req = readFloatArg("P_SC_Out_Req",args)
     P_SC_In      = readFloatArg("P_SC_In",args)
-   
+    
+    n_sc=3 #supercap-elementtien määrä
+
     E_Max_SC     = readFloatArg("$E_Max_SC",args)
     if E_Max_SC == 0:
         E_Max_SC = E_SC
@@ -330,7 +332,8 @@ def NF_Supercap(args, node, draw=False, dt=60): #PIKATESTI...
         args["$V_Max_SC"] = timedArg(V_Max_SC)
         V_SC=0
     
-    vuoto = 0.0000002*E_SC * dt
+    #vuoto = 0.0000002*E_SC * dt
+    vuoto=np.power(10,(V_SC/n_sc - 1.06)/0.14-7))*V_SC*n_sc *dt #TUT/NA supercaps
 
     E_SC += (P_SC_In - vuoto - P_SC_Out) *dt # P=UI, E=P*dt, 
     E_SC = min(E_SC,1000)

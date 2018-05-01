@@ -200,6 +200,7 @@ class node():
                     if ss>1.5: ss=1.5
                     if ss<0.1: ss=0.1
                     self.mximsize=ss
+                    
                 #if medium=="param":
                 #    k=command.find("=")
                 #    if k != -1:
