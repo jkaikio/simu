@@ -1334,7 +1334,7 @@ class graph():
         if txt is None:
             i=0
             options=[["save:",self.file],["UPD:",str(self.updrounds)],["dt:",str(self.dt)],["edges:","update"],["node:","new"],\
-                    ["newedge:","<edgelabel>"]]
+                    ["newedge:","<edgelabel>"],["rmnode:","<nodelabel>"]]
             while True: 
                 txxt = options[i][0]+options[i][1]
                 txt = UIWrite(im,x,y,txt=txxt,color=self.bgcolor)
@@ -1370,17 +1370,24 @@ class graph():
                     self.updrounds = int(command)
                 except:
                     print("Exception: Could not change update rate to ",command)
+
             if medium == "dt" or medium == "DT" or medium == "dT":
                 try:
                     self.dt = float(command)
                 except:
                     print("Exception: Could not change delta time to ",command)
+
             if medium == "node" or medium == "Node" or medium == "NODE":
                 if command == "new" or command == "New" or command =="NEW":
                     self.newNode()
+
+            if medium == "rmnode" or medium == "RMNode" or medium == "RMNODE":
+                self.rmNode(command)
+
             if medium == "edges" or medium == "Edges" or medium == "EDGES":
                 if command == "update" or command == "Update" or command =="UPDATE":
                     self.edgesUpdate()
+
             if medium == "newedge" or medium == "NewEdge" or medium == "newEdge" or medium == "NEWEDGE":
                 self.edgesUpdate(label=command)
 
@@ -1391,6 +1398,24 @@ class graph():
                     cargs=command[k:]
                     crunpy(cfunct,cargs,self)
     
+    def rmNode(self,nodelabel):
+        # Remove node and related edges from graph
+        # *removes node with <node>.label == nodelabel
+        edgelist=[]
+        for n in self.nodes:
+            if n.label == nodelabel:
+                for e in self.edges:
+                    if n == e.node1 or n== e.node2:
+                        edgelist.append(e)
+                self.nodes.remove(n)
+                print("Node "+nodelabel," removed!")
+                break
+        else:
+            print("Node "+nodelabel+" not found!")
+        for e in edgelist:
+            self.edges.remove(e)
+        self.majorUPD = True
+
 
     def newNode(self):
         # Generate new node in graph
@@ -1400,6 +1425,7 @@ class graph():
         n.cargo["Args"]={}
         n.color=colorblend(self.bgcolor,np.array(self.bgcolor,dtype=np.uint8)+128,0.9)
         self.nodes.append(n) 
+        self.majorUPD = True
 
     def edgesUpdate(self,label=""):
         # Update edge connections based on keys in "Args"

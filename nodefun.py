@@ -5,24 +5,32 @@ import cv2
 def readFloatArg(label,args,ifnotvalue=0.0):
     if label in args:
         variable = float(args[label][0])
-    else: variable=ifnotvalue
+    else: 
+        variable=ifnotvalue
+        args[label] = timedArg(ifnotvalue)
     return variable    
 def readIntArg(label,args,ifnotvalue=0):
     if label in args:
         variable = int(args[label][0])
-    else: variable=ifnotvalue
+    else: 
+        variable=ifnotvalue
+        args[label] = timedArg(ifnotvalue)
     return variable    
 def readBoolArg(label,args,ifnotvalue=False):
     if label in args:
         variable = args[label][0]
         if type(variable)==str:
             variable = eval(variable)
-    else: variable=ifnotvalue
+    else: 
+        variable=ifnotvalue
+        args[label] = timedArg(ifnotvalue)
     return variable    
 def readStrArg(label,args,ifnotvalue=""):
     if label in args:
         variable = str(args[label][0])
-    else: variable=ifnotvalue
+    else: 
+        variable=ifnotvalue
+        args[label] = timedArg(ifnotvalue)
     return variable   
 
 def nodefunfromstr(str):
@@ -161,7 +169,7 @@ class Monitor():  #Template function
                 if mxd[i]==0 and mnd[i]<0:
                     data[:,i]=self.h*0.95 + data[:,i]/mnd[i]*self.h*0.9
                 if mxd[i]>0 and mnd[i]<0:
-                    data[:,i]=self.h/2-data[:,i]*2/max(mxd[i],-1*mnd[i])*self.h*0.9
+                    data[:,i]=self.h/2-data[:,i]/2/max(mxd[i],-1*mnd[i])*self.h*0.9
         #if len(data)>300: data[:,:300]=data[:,-300:]
         img=np.ones((self.h,self.w,3), np.uint8)
         img[:,:,0]=self.bgcolor[0]
@@ -233,17 +241,26 @@ class Environment():  #Template function
         self.type = "Environment"
         self.label =label
         self.parent = None
-        self.lightingtype="Outdoor"
+        self.indoors=True
         self.time=0.0# +0.*24*3600# syyspäivä
         self.deltatime=60.0 #sekunteina 
         self.bgcolor = (50,20,5)
         self.date=""
         self.clock=""
+        self.weathertimer=0.0
+        self.cloudtimer=0.0
+        self.cloudiness=0.5
+        self.clouds=0.5
+        self.alratio=18/24
+        self.allux=300
+        self.daylightfactor = 1/32
+        self.latitude=65.0
 
     def update(self, args, node,dt=60):
         self.deltatime=dt
         if "$Time" in args:
             self.time=float(args["$Time"][0])
+        self.indoors = readBoolArg("$Indoors",args,ifnotvalue=self.indoors)
         self.time+=self.deltatime #vaihdetaan logiikan pyytämään aikahyppyyn myöhemmin
         tim = self.time
         year=tim/(365*24*3600)
@@ -260,11 +277,32 @@ class Environment():  #Template function
         #lightness = max((-1*np.cos(hour_of_day/24*2*np.pi)+\
         #                0.5*np.cos(day_of_year/365*2*np.pi))+\
         #                np.average(np.random.random(5)-0.3),0)
-        sunh = AuKorkeus(day_of_year+172,hour_of_day,leveyspiiri=65) #Oulu!!!
-        lightness = sd=sigmoid((sunh-7)/2)*0.8
-        self.bgcolor=tuple([min(k*lightness*255,255)for k in [.8,1,1.3]])
+        #sunh = AuKorkeus(day_of_year+172,hour_of_day,leveyspiiri=65) #Oulu!!!
+        #lightness = sd=sigmoid((sunh-7)/2)*0.8
+
+        if self.indoors:
+            alratio=self.alratio          #artificial light ratio - how many hours on per day
+            allux =self.allux              # artificial light illuminance
+            daylightfactor = self.daylightfactor   # how much of the daylight propagates indoors through windows etc
+        else:
+            alratio = 1.0
+            allux = 0.0
+            daylightfactor =1.0
+
+        if self.time > self.weathertimer:
+            self.cloudiness=min(max(1.2-np.random.random()*1.5,0),1)
+            self.weathertimer = self.weathertimer + np.random.randint(300000)
+        if self.time > self.cloudtimer:
+            self.clouds = min(max(1-np.random.random()*2,0),1)
+            self.cloudtimer = self.cloudtimer + np.random.randint(900)
+
+        lightness = IndoorLight(hour_of_day,self.cloudiness,self.clouds, alratio=alratio, allux =allux,\
+                                 daylightfactor=daylightfactor, yearday=day_of_year+172,latitude=self.latitude)
+        lightness=max(lightness,0)
+        self.bgcolor=tuple([min(k*lightness/400*daylightfactor,255)for k in [.8,1,1.3]])
         self.bgcolor = colorblend(node.color, self.bgcolor, 0.4)
         args["Lightness"] = timedArg(lightness)
+        args["$Indoors"] = timedArg(self.indoors)
         if "$Time" in args:
             args["$Time"] = timedArg(self.time)
         return args
@@ -285,19 +323,51 @@ class Environment():  #Template function
         return im
 
 def AuKorkeus(vuodenpaiva,kellonaika,leveyspiiri=65):
-        fLeveyspiiri=float(leveyspiiri)
-        fAkselinkallistus=23.43
-        fAkselinkallistus_Nyt=np.cos(float(vuodenpaiva+10)/365*2*np.pi)*fAkselinkallistus
-        fSunHeigth=-np.cos(float(kellonaika)/24*np.pi*2)*(90-fLeveyspiiri)-fAkselinkallistus_Nyt
-        P=950
-        T=0        
-        sh=fSunHeigth
-        fSunHeigth=sh+P/(273+T)*(0.1594+0.0196*sh+0.00002*sh*sh)/(1+0.505*sh+0.0845*sh*sh) #Ilmakeh�n refraktio
-        return fSunHeigth    
+    fLeveyspiiri=float(leveyspiiri)
+    fAkselinkallistus=23.43
+    fAkselinkallistus_Nyt=np.cos(float(vuodenpaiva+10)/365*2*np.pi)*fAkselinkallistus
+    fSunHeigth=-np.cos(float(kellonaika)/24*np.pi*2)*(90-fLeveyspiiri)-fAkselinkallistus_Nyt
+    P=950
+    T=0        
+    sh=fSunHeigth
+    fSunHeigth=sh+P/(273+T)*(0.1594+0.0196*sh+0.00002*sh*sh)/(1+0.505*sh+0.0845*sh*sh) #Ilmakeh�n refraktio
+    return fSunHeigth    
+
+def ArtiLight(alratio,hour,allux):
+    if np.abs(hour % 24.0 - 12.0)/12 <= alratio:
+        return allux
+    return 0.0
+
+def OutdoorLight(hour,cloudiness, clouds, yearday= 91,latitude = 65):
+    sunheight = AuKorkeus(yearday,hour,latitude)
+    
+    s= sigmoid(sunheight)
+    sl=sunheight*sigmoid(sunheight-2)+3*s
+    sl=(1-s)*sl+s*sunheight
+    sunlight = sl*2000 #roughly 0 to 100 000 lux during day
+    
+    c=cloudiness*0.9
+    cy=(1-c*c)
+    ca=(1-np.sqrt(c))
+    
+    light = sunlight * (cy*(1-clouds) + ca*clouds)
+    
+    return light
+    
+def IndoorLight(hour,cloudiness,clouds,alratio=18/24, allux =300, daylightfactor=1/32, yearday=91,latitude=65):
+    AL = ArtiLight(alratio,hour,allux)
+    OL = OutdoorLight(hour,cloudiness,clouds, yearday= yearday,latitude = latitude)
+    indoorlight = AL + OL * daylightfactor
+    return indoorlight
+
+
+
+
+
 
 def NF_SolarCell(args, node, draw=False,dt=60): 
     Lightness = readFloatArg("Lightness",args)
-    L=Lightness*1000
+    L=Lightness
     #k = 0.000086173303 #eV / K
     #T=0
     #perkT = 1/((273+T)*k) 
@@ -316,7 +386,7 @@ def NF_SolarCell(args, node, draw=False,dt=60):
     V = U - 5#Il*RS
     I = I0*(np.exp(V*perkT/n)-1)-IL+ V/RSH -IL0
     I=[min(i,0) for i in I]
-    PMx=-1*min(I*U)
+    #PMx=-1*min(I*U)
     V_PV = U[np.argmin(I*U)]
     I_PV = -1*I[np.argmin(I*U)]
     P_PV_Out = V_PV*I_PV    
