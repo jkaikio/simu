@@ -211,12 +211,29 @@ def NF_Environment(args, node, draw=False,dt=60):
     return args
 
 
+
+# Illuminance (lux) Surfaces illuminated by 
+# 0.0001 Moonless, overcast night sky (starlight)
+# 0.002 Moonless clear night sky with airglow 
+# 0.05–0.3 Full moon on a clear night
+# 3.4 Dark limit of civil twilight under a clear sky 
+# 20–50 Public areas with dark surroundings 
+# 50 Family living room lights (Australia, 1998)
+# 80 Office building hallway/toilet lighting
+# 100 Very dark overcast day
+# 150 Train station platforms 
+# 320–500 Office lighting
+# 400 Sunrise or sunset on a clear day. 
+# 1000 Overcast day;typical TV studio lighting 
+# 10,000–25,000 Full daylight (not direct sun)
+# 32,000–100,000 Direct sunlight 
+
 class Environment():  #Template function
     def __init__(self, label="Environment"):
         self.type = "Environment"
         self.label =label
         self.parent = None
-        self.inside=False
+        self.lightingtype="Outdoor"
         self.time=0.0# +0.*24*3600# syyspäivä
         self.deltatime=60.0 #sekunteina 
         self.bgcolor = (50,20,5)
@@ -357,8 +374,6 @@ def NF_Supercap(args, node, draw=False, dt=60): #PIKATESTI...
     P_SC_Out_Req = readFloatArg("P_SC_Out_Req",args)
     P_SC_In      = readFloatArg("P_SC_In",args)
     
-    
-
     # E_Max_SC     = readFloatArg("$E_Max_SC",args)
     # if E_Max_SC == 0:
     #     E_Max_SC = E_SC
@@ -371,25 +386,22 @@ def NF_Supercap(args, node, draw=False, dt=60): #PIKATESTI...
     #      args["$V_Max_SC"] = timedArg(V_Max_SC)
     #      V_SC=0
 
-    n_sc=3 #supercap-elementtien määrä
-    C1 = 0.3 #TUT /NA supercap
-    V_Max_SC= 1.2 * n_sc
-    E_Max_SC= C1/2 * V_Max_SC * V_Max_SC /n_sc
-    
-    V_SC1 = np.sqrt(2/C1 * E_SC /n_sc)
-
-    #V_SC1= V_SC/n_sc
-    Pvuoto = np.power(10,(V_SC1 - 1.06)/0.14-7) * V_SC1 * n_sc #TUT /NA supercap
-    
     ######################
     #  E=1/2 C U*2
     #  dE = P dt = UI dt = E_u-E_i = 1/2 C(U_u*U_u - U_i*U_i)
     #  U_u = np.sqrt(2/C * (E_u -E_i) + U_i*U_i)
     ######################
 
+    n_sc=3 #supercap-elementtien määrä
+    C1 = 0.3 #TUT /NA supercap
+    V_Max_SC = 1.1 * n_sc
+    E_Max_SC = C1/2 * V_Max_SC * V_Max_SC /n_sc    
+
+    V_SC1 = np.sqrt(2/C1 * E_SC /n_sc)
+
+    Pvuoto = np.power(10,(V_SC1 - 1.06)/0.14-7) * V_SC1 * n_sc #TUT /NA supercap
     dE = (P_SC_In - Pvuoto - P_SC_Out) * dt 
     
-    # print("E",E_SC,"dE",dE,"PIn",P_SC_In,"Pv",Pvuoto,"Pout",P_SC_Out,"V",V_SC)
     if -1 * dE < E_SC:
         E_SC +=  dE
         E_SC = min(E_SC , E_Max_SC)
@@ -398,13 +410,9 @@ def NF_Supercap(args, node, draw=False, dt=60): #PIKATESTI...
         V_SC1 = 0
         E_SC = 0
 
-    #E_SC = min(E_SC,1000)
     E_SC = max(E_SC,0)
     V_SC = max(V_SC1 * n_sc,0)
-    
-    #print("E",E_SC,"dE",dE,"PIn",P_SC_In,"Pv",Pvuoto,"Pout",P_SC_Out,"V",V_SC)
-    #print()
-   
+       
     args["E_SC"]=timedArg(E_SC)
     args["V_SC"]=timedArg(V_SC)
     return args

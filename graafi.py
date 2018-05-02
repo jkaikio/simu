@@ -1,13 +1,14 @@
-######################
+##################################################################################
 # library for GRAPHS
-# Classes and functions that you can use for representation, visualisation, 
+# Classes and functions for representation, visualisation, 
 # or calculation / simulation of functionalities through GRAPH-relationships between items
 #
 # (c) Janne Aikio, 2018
-# janne.aikio@vtt.fi
+#
 # jkaikio@gmail.com
 #
-#####################
+###################################################################################
+
 import cv2
 import numpy as np
 from random import shuffle
@@ -16,111 +17,13 @@ import threading
 import pickle
 
 
-def Vlen(V): 
-    #Length of vector V
-    vlen=V[0]*V[0]+V[1]*V[1]
-    return np.sqrt(vlen)
-
-def Vlen2(V): 
-    #Length of vector v squared
-    vlen=V[0]*V[0]+V[1]*V[1]
-    return vlen
-
-def Vangle(v): 
-    # returns angle of a vector 
-    return np.angle(v[0]+v[1]*1j,deg = True)
-
-
-def Normalize(vect): 
-    #returns normalized vector of vect
-    x=vect[0]
-    y=vect[1]
-    if (y==0) and (x==0):
-        v=np.array([0,0])
-    else:
-        r=np.sqrt(x*x+y*y)
-        v=np.array([x/r, y/r])
-    return v
-
-def Orthonormal(vi): 
-    #Returns orthonormal vector to vi
-    v=Normalize(vi)
-    V=v[0]+v[1]*1j
-    Vo=np.exp(np.pi*0.5j)*V
-    return np.array([np.real(Vo), np.imag(Vo)])
-
-def potential(dx,dy, mode="normal", scale=1.0): 
-    #Old potential function 
-    #dx=dX[0]
-    #dy=dX[1]
-    r2 = dx*dx + dy*dy
-    r=np.sqrt(r2)
-    dX=Normalize(np.array([dx,dy]))
-    if mode=="rep":
-        p= -20.0/(1+r2)
-    if mode=="normal":
-        p= (r2/128.0-10.0)/(1.0+r2/400.0)/(r+.001)
-
-    if mode=="grouprep":
-        p= -100.0/(1+r2)
-    if mode=="grouppull":
-        p= (r2/128.0-10.0)/(1.0+r2/400.0)/(r+.001)
-        p*=10
-        if p<0: p=0
-    return -p*np.array([dx,dy])*scale
-
-def sigmoid(z):
-    return 1.0/(1.0+np.exp(-z))
-
-def PotentialSize(dX, size=10, repulsion = True,scale=1.0): 
-    #interaction potential between nodes
-    ro = Vlen(dX)
-    dx=Normalize(dX)
-
-    towards=1.0
-    if repulsion: towards = 0.0
-
-    #nearfield
-    rnf=size
-    rmin=10.0
-    rnf=max(rmin,rnf)
-    rnsc=5.0/rnf
-    pnf = -rnf/8.0
-
-    #midfield
-    rmf=(ro/rnf-0.3)
-    pmf = -1.0/(.1+(rmf*rmf))+7*towards
-
-    #farfield
-    rff=7.0*rnf
-    rfsc=20.0/rff
-    pff = 0.5+6.5*towards
-
-    #transition: near-fied - mid-field
-    r=(ro-rnf)*rnsc
-    sgm_nf=sigmoid(r)
-    pnmf= (1.0-sgm_nf)*pnf + sgm_nf*pmf
-
-    #transition: ... - far-field
-    r=(ro-rff)*rfsc
-    sgm_ff=sigmoid(r)
-    p=(1-sgm_ff)*pnmf + sgm_ff*pff
-     
-    return p*dx*scale
-
-
-
-
-
-
-
-
 ########################################################################################
 #       
-#       #   #  
-#       ##  #
-#       # # #
-#       #  ##
+#       #   #   ####   ####   #####
+#       ##  #  #    #  #   #  #
+#       # # #  #    #  #   #  ###
+#       #  ##  #    #  #   #  #
+#       #   #   ####   ####   #####
 ########################################################################################
 
 # NODE OBJECTS - basic building blocks of graph
@@ -551,11 +454,11 @@ class node():
 
 ########################################################################################
 #       
-#       ######
-#       #
-#       ###
-#       #
-#       ######  
+#       ######  #####    ####  #####
+#       #       #    #  #      #
+#       ###     #    #  # ###  ###
+#       #       #    #  #   #  #
+#       ######  #####    ###   #####
 ########################################################################################
 
                    
@@ -622,11 +525,11 @@ class edge():
 
 ########################################################################################
 #       
-#        ####
-#       #    
-#       # ####
-#       #    #
-#        ####  
+#        ####   #####   #####  ####   #   #
+#       #       #    #  #   #  #   #  #   #
+#       # ####  #    #  #####  #   #  #####
+#       #    #  #####   #   #  ####   #   #
+#        ####   #    #  #   #  #      #   #
 ########################################################################################
    
 # GRAPH OBJECT
@@ -780,7 +683,8 @@ class graph():
     # RUNNING THE GRAPH CODES
 
     def RunWithControlPanel(self, video = False):
-        # Runs Graph with controlpanel - USE RunThreaded for better performance!!!
+        # Runs Graph with controlpanel - 
+        # OLD: USE RunThreaded for better performance!!!
         if video: self.controlpanelflags["video"] = True
         vid=False
         cv2.startWindowThread()
@@ -1545,17 +1449,12 @@ def loadGraph(filename="Graafi.GR"):
         return loadedGraph
 
 
-########################################################################################
-#       
-#       ##   ##
-#       # # # # 
-#       #  #  #
-#       #     #
-#       #     #
-########################################################################################
-
-
 class GRUpdateThread(threading.Thread):
+    # Thread class for GRAPH update - used in <GRAPH>.RunThreaded()
+    # Updates functionalities embedded in nodes and edges using <GRAPH>.UpdateAll function
+    # Arguments:
+    # * GR - graph to be updated
+    # * nrounds - how many update rounds taken in the thread - <GRAPH>.updrounds mapped to nrounds
     def __init__(self,threadID,GR,name="UpdateGR",nrounds=None):
         threading.Thread.__init__(self)
         self.threadID = threadID
@@ -1582,6 +1481,14 @@ class GRUpdateThread(threading.Thread):
                 return
 
 class GRMoveThread(threading.Thread):
+    # NOT USED NOT USED NOT USED...
+    # NOT USED NOT USED NOT USED...
+
+    # Thread class for GRAPH movement - was not practical to use in <GRAPH>.RunThreaded()
+    # Updates positions of nodes through <GRAPH>.MoveAll function
+    # Arguments:
+    # * GR - graph to be moved
+
     def __init__(self,threadID,GR,name="MoveGR"):
         threading.Thread.__init__(self)
         self.threadID = threadID
@@ -1601,7 +1508,454 @@ class GRMoveThread(threading.Thread):
                 print("Ending mov")  
                 return
 
+########################################################################################
+#       
+#       ##   ##
+#       # # # # 
+#       #  #  #
+#       #     #
+#       #     #
+########################################################################################
+
+
+# CENTERLINE CLASS FOR BORDER DETECTION
+
+
+class centerline():
+    # "Centerline" between two nodes - used in defining borders between nodes
+    # * defines a perpendicular line going trough the center point between two nodes
+    # * "eV" vector perpendicular to the line connecting node1 and node2
+    # * "eX" center point between node1 and node2
+
+    def __init__(self,eX,eV,node1,node2):
+        self.eX = eX
+        self.eV = eV
+        self.node1=node1
+        self.node2=node2
+        self.endp=[]
+
+    def coll(self,other):
+        # collision detection between centerlines self and other 
+        # returns 
+        # P - point of collision of lines
+        # coll = True if distance to collision point is same for the nodes of self and other
+        #       coll == True means that point P may be a border end-point between self and other
+        B=self.eV
+        A=self.eX-other.eX
+        C=other.eV
+        p=C[1]*B[0]-B[1]*C[0]
+        if p==0:
+            return False, np.array([999999,99999])
+        t=(A[1]*B[0]-A[0]*B[1])/p
+        s=(A[1]*C[0]-A[0]*C[1])/p
+        P=self.eX+s*B
+        #coll=(0<t<1)&(0<s<1)
+
+        ls=Vlen2(P-np.array([self.node1.x,self.node1.y]))
+        lo=Vlen2(P-np.array([other.node1.x,other.node1.y]))
+        coll = -.001*ls<(ls-lo)<.001*ls
+
+        return P, coll 
+    
+    def NodeVsEndp(self,onode):
+        #Screens and Returns endpoints for centerline
+        if (onode == self.node1) or (onode==self.node2): return
+        #print(self.endp)
+        endp=[]
+        for P in self.endp:
+            ls=Vlen2(P-np.array([self.node1.x,self.node1.y]))
+            lo=Vlen2(P-np.array([onode.x,onode.y]))
+            #print(lo,ls)
+            if (lo>=ls*0.999): 
+                endp.append(P)
+        self.endp = endp
+    
+    def DrawCL(self, im,scale=1,cent=np.array([0,0]),r=3):
+        #draws a center-line to image "im" with geometry scaling "scale" and center-point in "cent"
+        # end-points drawn as circles with radius r
+        n1= self.node1
+        n2= self.node2
+        colorconn=(int(n1.color[0]/2+n2.color[0]/2),\
+                int(n1.color[1]/2+n2.color[1]/2),\
+                int(n1.color[2]/2+n2.color[2]/2))
+        i=0
+        for ep in self.endp[:-1]:
+            i+=1
+            epp=self.endp[i]
+            x1= int((ep[0]-cent[0])*scale)
+            y1= int((ep[1]-cent[1])*scale)
+            x2= int((epp[0]-cent[0])*scale)
+            y2= int((epp[1]-cent[1])*scale)
+
+            cv2.line(im,(x1,y1),(x2,y2),colorconn,1)
+            cv2.circle(im, (x1,y1),r,colorconn,-1)
+            cv2.circle(im, (x2,y2),r,colorconn,-1)
+
+
+
+
+
+# FUNCTIONS FOR GENERATING GRAPHS FROM DICTIONARIES
+
+######################################################################################
+# EXAMPLE OF DICTIONARIES NEEDED: IMAGES, ARGS (arguments), CARGOFUN - functions, ARGVALUES ....
+#######################################################################################
+#
+#  IMAGES={
+#     #Power block
+#     "MainSwitch":"onoff2.png",
+#     "SolarCell":None,
+#     "LongTermBattery":None,
+#     "SuperCaps":None,
+#     "HarvesterCircuits":None,
+#     "VoltageRegulation":None,
+#     "PowerMonitor": None, 
+# }
+
+# ARGS={
+#     #Power block
+#     "MainSwitch":["OnState_Main"],
+#     "SolarCell":["V_PV","P_PV_Out","Lightness"],
+#     "LongTermBattery":["E_Batt","V_Batt","P_Batt"],
+#     "SuperCaps":["V_SC","E_SC","P_SC_Out","P_SC_In","P_SC_Out_Req"],
+#     "HarvesterCircuits":["OnState_Main","V_PV","P_PV_Out","E_Batt","V_Batt","P_Batt",\
+#                          "V_SC","E_SC","P_SC_Out","P_SC_Out_Req","P_SC_In","P_To_Reg",\
+#                          "V_To_Reg","P_Tot_Out","V_Tot_Out", "TotalEnergy","PowerLowAlert","PowerShuttingDown"],
+#     "VoltageRegulation":["P_To_Reg","V_To_Reg","P_Tot_Out","V_Tot_Out"],
+#     "PowerMonitor": ["V_PV","P_PV_Out","E_SC","V_SC","E_Batt","V_Batt"],
+# }
+
+# CARGOFUN={ #
+#     #Power block
+#     "MainSwitch":NF_MainSwitch,
+#     "SolarCell":NF_SolarCell,
+#     "LongTermBattery":NF_Batt,
+#     "SuperCaps":NF_Supercap,
+#     "HarvesterCircuits":NF_EHarvester,
+#     "VoltageRegulation":NF_VRegulator,
+#     "PowerMonitor": NF_Monitor,
+# }
+
+# ARGVALUES={'Data_Sensors': None,
+#  'E_Batt':  533,# 40mAh*3.7V = 533 Ws; #3.7 Wh == 13320 Ws
+#  'E_SC': 0.02,
+#  'Lightness': 0.0,
+#  'Message_From_Antenna': "",
+#  'Message_From_Gateway': "",
+#  'Message_To_Antenna': "",
+#  'Message_To_Gateway': "",
+#  'NFC': None,
+#  'OnState_Main': True,
+#  'OnState_Radio': False,
+#  'OnState_Sensors': False,
+#  'OnState_indicator': False,
+#  'P_Batt': 0.0
+#  }
+##########################################################
+# EXAMPLE OF USAGE OF FUNCTIONS
+##########################################################
+#
+# rx=800
+# ry=600
+
+# GRAAFI={"Nodes":{},"Edges":[]}
+# DICTfromCARGOFUN(CARGOFUN, ARGS, ARGVALUES, GRAAFI)
+# IMAGEStoDICT(IMAGES, GRAAFI)
+# GR=GRfromDICT(GRAAFI,rx,ry,colorscheme = "random")
+# GR.bgcolor=(45,11,11)
+
+###########################################################
+# EXAMPLE OF GRAPH DICTIONARY GENERATED BY THE CODE
+###########################################################
+#
+# GRAAFI = {'Edges': [['MainSwitch', 'HarvesterCircuits', 'OnState_Main'],
+#   ['SolarCell', 'HarvesterCircuits', 'V_PV'],
+#   ['SolarCell', 'HarvesterCircuits', 'P_PV_Out'],
+#   ['SolarCell', 'PowerMonitor', 'V_PV'],
+#   ['SolarCell', 'PowerMonitor', 'P_PV_Out'],
+#   ['SolarCell', 'Environment', 'Lightness'],
+#   ['LongTermBattery', 'HarvesterCircuits', 'E_Batt'],
+#   ['LongTermBattery', 'HarvesterCircuits', 'V_Batt'],
+#   ['LongTermBattery', 'HarvesterCircuits', 'P_Batt'],
+#   ['LongTermBattery', 'PowerMonitor', 'E_Batt'],
+#   ['LongTermBattery', 'PowerMonitor', 'V_Batt'],
+#   ['SuperCaps', 'HarvesterCircuits', 'V_SC'],
+#   ['SuperCaps', 'HarvesterCircuits', 'E_SC'],
+#   ['SuperCaps', 'HarvesterCircuits', 'P_SC_Out'],
+#   ['SuperCaps', 'HarvesterCircuits', 'P_SC_In'],
+#   ['SuperCaps', 'HarvesterCircuits', 'P_SC_Out_Req'],
+#     ...
+#   ['Gateway', 'Internet', 'Service_To_Gateway']],
+
+#  'Functions': {'NF_Batt': <function nodefun.NF_Batt>,
+#   'NF_EHarvester': <function nodefun.NF_EHarvester>,
+#   'NF_Environment': <function nodefun.NF_Environment>,
+#   'NF_MainSwitch': <function nodefun.NF_MainSwitch>,
+#   'NF_Microcontroller': <function nodefun.NF_Microcontroller>,
+#   'NF_Monitor': <function nodefun.NF_Monitor>,
+#   'NF_SolarCell': <function nodefun.NF_SolarCell>,
+#   'NF_Supercap': <function nodefun.NF_Supercap>,
+#       ...
+#   'NF_VRegulator': <function nodefun.NF_VRegulator>},
+
+#  'Nodes': {'CommunicationAntenna': {'Args': {'Message_From_Antenna': ['',
+#      1525240660.559729],
+#     'Message_From_Gateway': ['', 1525240660.559729],
+#     'Message_To_Antenna': ['', 1525240660.559729],
+#     'Message_To_Gateway': ['', 1525240660.559729]},
+#    'Function': None,
+#    'image': None,
+#    'node': <graafi.node at 0xb0f6e80>},
+#   'CommunicationRadio': {'Args': {'Message_From_Antenna': ['',
+#      1525240660.559729],
+#     'Message_To_Antenna': ['', 1525240660.559729],
+#     'OnState_Radio': [False, 1525240660.559729],
+#     'P_Radio': [0.0, 1525240660.559729],
+#     'RadioMessagePull': ['', 1525240660.559729],
+#     'RadioMessagePush': ['', 1525240660.559729]},
+#    'Function': None,
+#    'image': None,
+#    'node': <graafi.node at 0xb0f6748>},
+#   'Environment': {'Args': {'$NF_Environment': <nodefun.Environment at 0xac8d9b0>,
+#     '$Time': [18224500.0, 1525250441.1180801],
+#     'Lightness': [8.550698481063068e-12, 1525250441.1180801]},
+#    'Function': <function nodefun.NF_Environment>,
+#    'image': None,
+#    'node': <graafi.node at 0xb0f6a58>},
+#   'Gateway': {'Args': {'Message_From_Gateway': ['', 1525240660.559729],
+#     'Message_To_Gateway': ['', 1525240660.559729],
+#     'ServiceRequest_From_Gateway': ['', 1525240660.559729],
+#     'Service_To_Gateway': ['', 1525240660.559729]},
+#    'Function': None,
+#    'image': None,
+#    'node': <graafi.node at 0xb0f6da0>},
+#   'HarvesterCircuits': {'Args': {'E_Batt': [491.45964812765686,
+#      1525246362.6176298],
+#     'E_SC': [0, 1525246362.6176298],
+#     'OnState_Main': [True, 1525242911.7170937],
+#     'P_Batt': [1.2e-05, 1525250441.1180801],
+#     'P_PV_Out': [0.0, 1525246362.6176298],
+#     'P_SC_In': [0, 1525250441.1180801],
+#     'P_SC_Out': [0.0, 1525250441.1180801],
+#     'V_To_Reg': [3.5999999999999996, 1525246362.6176298],
+#     'V_Tot_Out': [3.5999999999999996, 1525250441.1180801]},
+#    'Function': <function nodefun.NF_EHarvester>,
+#    'image': None,
+#    'node': <graafi.node at 0xb3e98d0>},
+#  }
+
+
+
+# EXAMPLE OF IMAGES, KEYWDS, ALTKEYWDS
+# KEYWDS={
+#     "kuu":["pimea","maisema","kuu","rakennus"],
+#     "konna":["elain","silma","luonto","konna"],
+#     "silma":["silma","maisema","ihminen"],
+#     "janne":["silma","ihminen"],
+#     "kerpsu":["elain"],
+#     "mokki":["rakennus","luonto"],
+#     "sorsa":["elain","luonto"]
+# }
+# 
+# # IMAGES={
+#     "kuu":"kuu.jpg",
+#     "konna":"konna.jpg",
+#     "silma":"SILMA.jpg",
+#     "janne":"Janne.jpg",
+#     "kerpsu":"kerpsu.jpg",
+#     "mokki":"mokki.jpg",
+#     "sorsa":"sorsa.jpg"
+# }
+#
+# ALTKEYWDS={
+#     "kuu":["musta","sininen","oranssi"],
+#     "konna":["keltainen"],
+#     "silma":["sininen","harmaa","vihrea","valkoinen"],
+#     "janne":["sininen","valkoinen"],
+#     "kerpsu":["musta"],
+#     "mokki":["harmaa","sininen","vihrea"],
+#     "sorsa":["keltainen","sininen","punainen","vihrea"]
+# }
+
+
+def DICTfromKEYWDS(KEYWDS, GRAAFI):
+    # Create GRAAFI-dictionary from KEYWDS-dictionary
+    # keywds keys => node labels
+    # keywds values => list of edge labels => dictionary of edges generated between nodes sharing label names
+    NodeNames=list(KEYWDS.keys())
+    i=0
+    for nn in NodeNames:
+        GRAAFI["Nodes"][nn]={"Keywords":KEYWDS[nn]}
+    for nn in NodeNames[:-1]:
+        i+=1
+        for nnn in NodeNames[i:]:
+            for kw in KEYWDS[nn]:
+                for kww in KEYWDS[nnn]:
+                    if kw == kww:
+                        GRAAFI["Edges"].append([nn,nnn,kw])
+    return GRAAFI
+
+def IMAGEStoDICT(IMAGES, GRAAFI):
+    # Add image file names to GRAAFI-dictionary through IMAGES dictionary 
+    # IMAGES keys => node labels
+    # IMAGES values => image file names (will be loaded into: <node>.image )  
+    NodeNames=list(IMAGES.keys())
+    for nn in NodeNames:
+        GRAAFI["Nodes"][nn]["image"]=IMAGES[nn]
+    return GRAAFI
+
+
+def DICTfromCARGOFUN(CARGOFUN,ARGS,ARGVALUES,GRAAFI):
+    # Create GRAAFI-dictionary from CARGOFUN, ARGS, ARGVALUES dictionaries
+    # When parsing a graph object from the GRAAFI-dictionary,
+    # * nodes are generated based on keys inf args
+    # * functions and their arguments will be saved in <node>.cargo -dictionary
+    # * arg values are given for the arg keys with timestamp (timedArg())
+    # * dictionary of edges is generated to connect nodes with matching argument keys 
+
+    NodeNames=list(ARGS.keys())
+    i=0
+    GRAAFI["Functions"]={}
+    for nn in NodeNames:
+        GRAAFI["Nodes"][nn]={"Args":{}}
+        for a in ARGS[nn]:
+            GRAAFI["Nodes"][nn]["Args"][a]=timedArg(ARGVALUES[a])
+        GRAAFI["Nodes"][nn]["Function"]=CARGOFUN[nn]
+        if CARGOFUN[nn] is not None:
+            fstr=str(CARGOFUN[nn])
+            i1=fstr.find(" ")
+            i2=fstr.find(" ",i1+1)
+            fstr = fstr[i1+1:i2]
+            GRAAFI["Functions"][fstr]=CARGOFUN[nn]
+
+    for nn in NodeNames[:-1]:
+        i+=1
+        for nnn in NodeNames[i:]:
+            for kw in ARGS[nn]:
+                for kww in ARGS[nnn]:
+                    if kw == kww:
+                        GRAAFI["Edges"].append([nn,nnn,kw])
+     
+    
+    return GRAAFI
+
+
+def GRfromDICT(GRAAFI,rx,ry, colorscheme = "BW", color = (128,100,100)):
+    # GENERATES and returns a Graph object GR from GRAAFI dictionary
+    # rx, ry = image size of stored in GR.imgsize
+    # colorscheme, color - parameter for Recolor-function giving initial coloring to graph
+    # 
+    # Initialises GR.nodes and GR.edges based on GRAAFI dictionary
+    # Creates and returns graph GR 
+
+    nodes=[]
+    NodeNames=list(GRAAFI["Nodes"].keys())
+    for nn in NodeNames:
+        n=node(np.random.random()*rx,np.random.random()*ry)
+        n.label = nn
+        n.image=cv2.imread(GRAAFI["Nodes"][nn]["image"])
+        n.cargo = GRAAFI["Nodes"][nn]
+        GRAAFI["Nodes"][nn].update({"node":n})
+        nodes.append(n)
+    edges=[]
+    for e in GRAAFI["Edges"]:
+        n1=GRAAFI["Nodes"][e[0]]["node"]
+        n2=GRAAFI["Nodes"][e[1]]["node"]     
+        ed=edge(n1,n2)
+        if len(e)>2: ed.label =e[2]
+        edges.append(ed)
+        n1.size=n1.size+5.0
+        n2.size=n2.size+5.0
+    GR=graph(nodes,edges)
+    Recolor(GR, colorscheme, color)
+    GR.imgsize=np.array([ry,rx,3])
+    GR.functions=GRAAFI["Functions"]
+    return GR
+
+def ALTEdgesfromKEYWDS(KEYWDS,GRAAFI):
+    # Returns a list of edges (edge-objects) from based on KEYWDS
+    # can be used for alternative edge sets generation
+    # Apply to a graph: <GR>.edges = edges
+    #  
+    NodeNames=list(KEYWDS.keys())
+    i=0
+    #for nn in NodeNames:
+    #    GRAAFI["Nodes"].update({nn:{"Keywords":KEYWDS[nn]}})
+    GRF={"Edges":[]}
+    for nn in NodeNames[:-1]:
+        i+=1
+        for nnn in NodeNames[i:]:
+            for kw in KEYWDS[nn]:
+                for kww in KEYWDS[nnn]:
+                    if kw == kww:
+                        GRF["Edges"].append([nn,nnn,kw])
+
+    edges=[]
+    for e in GRF["Edges"]:
+        n1=GRAAFI["Nodes"][e[0]]["node"]
+        n2=GRAAFI["Nodes"][e[1]]["node"]     
+        ed=edge(n1,n2)
+        if len(e)>2: ed.label =e[2]
+        edges.append(ed)
+        n1.size=n1.size+5.0
+        n2.size=n2.size+5.0
+    return edges
+
+def createARGLIST(ARGS,ARGLIST):
+    # creates a dict of  ARGS with none values into ARGLIST dictionary
+    # use e.g. for initializing argvalues dict
+    NodeNames=list(ARGS.keys())
+    for nn in NodeNames:
+        for a in ARGS[nn]:
+            ARGLIST.update({a:None})
+            
+def createNODELIST(ANYLIST,NODELIST):
+    # creates dict of nodes (keys) with None values
+    # use for duplicating nodedicts (images, alternative keywds etc.)
+    NodeNames=list(ANYLIST.keys())
+    for nn in NodeNames:
+        NODELIST.update({nn:None})
+
+###############
+# TIMED ARGUMENT
+################
+def timedArg( a ,dtype="notSpecified"):
+    # Timestamping values
+    # returns a 2-element list [a, timestamp] for value a
+    # dtype argument specifies datatype - needed for string input
+    if dtype == str:
+        a=str(a)
+    elif dtype == int:
+        a=int(a)
+    elif dtype == float:
+        a=float(a)
+    elif dtype == bool:
+        a = a=="True"
+    elif str(dtype) == "<class 'NoneType'>":
+        a = None
+    elif dtype=="notSpecified":
+        pass
+    else:
+        try:
+            a=eval(a)
+        except:
+            print("Exception: timedArg: Argument data type not known")
+            print("Argument: "+str(a))
+    return [a,time.time()]   
+
+def crunpy(f,argstring,self):
+    #Runs function f with argstring "(<arguments>)" 
+    #a=argstring[1:-1]
+    eval(f+argstring)
+
+##############################################################
+# TEXT UI
+##############################################################
+
 def UIWrite(im,x,y,txt="",color=(0,0,0)):
+    # TEXT UI  - opens a simple text input view in image "im" position x,y
+    # * presents string "txt" to start with
+    # * color - text color; default black with white background
     pos=0
     cursor="| "
     marg=5
@@ -1641,186 +1995,53 @@ def UIWrite(im,x,y,txt="",color=(0,0,0)):
         
         inp = cv2.waitKeyEx(1)
         #if inp != -1: print(inp)
-        if inp==13:
+        if inp==13: # Return to return the written text...
             break
-        if inp==27:
+        if inp==27: # ESC to quit without 
             txt=""
             break
-        if inp==127 or inp == 8:
+        if inp==127 or inp == 8: # delete / back arrow to remove characters
             if pos == 0:
                 txt=txt[:-1]
             else:
                 txt = txt[:pos-1]+txt[pos:]
-        if inp==2490368 or inp == 2621440 or inp == 63232 or inp ==63233:
+        if inp==2490368 or inp == 2621440 or inp == 63232 or inp ==63233: # up and down arrow keys returns None
             return None
-        if inp==2424832 or inp==63234: pos-=1
-        if inp==2555904 or inp==63235: pos+=1
+        if inp==2424832 or inp==63234: pos-=1 #left arrow key 
+        if inp==2555904 or inp==63235: pos+=1 #right arrow key
         if -1*pos>len(txt): pos=0
         if pos>0:pos=0
-        elif 31<inp<127:
+        elif 31<inp<127: # add character
             if pos==0:
                 txt+=chr(inp)
             else:
                 txt=txt[:pos]+chr(inp)+txt[pos:]
     return txt
 
- 
 
-class centerline():
-    def __init__(self,eX,eV,node1,node2):
-        self.eX = eX
-        self.eV = eV
-        self.node1=node1
-        self.node2=node2
-        self.endp=[]
-
-    def coll(self,other):
-        B=self.eV
-        A=self.eX-other.eX
-        C=other.eV
-        p=C[1]*B[0]-B[1]*C[0]
-        if p==0:
-            return False, np.array([999999,99999])
-        t=(A[1]*B[0]-A[0]*B[1])/p
-        s=(A[1]*C[0]-A[0]*C[1])/p
-        P=self.eX+s*B
-        #coll=(0<t<1)&(0<s<1)
-
-        ls=Vlen2(P-np.array([self.node1.x,self.node1.y]))
-        lo=Vlen2(P-np.array([other.node1.x,other.node1.y]))
-        coll = -.001*ls<(ls-lo)<.001*ls
-
-        return P, coll 
-    
-    def NodeVsEndp(self,onode):
-        if (onode == self.node1) or (onode==self.node2): return
-        #print(self.endp)
-        endp=[]
-        for P in self.endp:
-            ls=Vlen2(P-np.array([self.node1.x,self.node1.y]))
-            lo=Vlen2(P-np.array([onode.x,onode.y]))
-            #print(lo,ls)
-            if (lo>=ls*0.999): 
-                endp.append(P)
-        self.endp = endp
-                
-
-    
-    def DrawCL(self, im,scale=1,cent=np.array([0,0]),r=3):
-        n1= self.node1
-        n2= self.node2
-        colorconn=(int(n1.color[0]/2+n2.color[0]/2),\
-                int(n1.color[1]/2+n2.color[1]/2),\
-                int(n1.color[2]/2+n2.color[2]/2))
-        i=0
-        for ep in self.endp[:-1]:
-            i+=1
-            epp=self.endp[i]
-            x1= int((ep[0]-cent[0])*scale)
-            y1= int((ep[1]-cent[1])*scale)
-            x2= int((epp[0]-cent[0])*scale)
-            y2= int((epp[1]-cent[1])*scale)
-
-            cv2.line(im,(x1,y1),(x2,y2),colorconn,1)
-            cv2.circle(im, (x1,y1),r,colorconn,-1)
-            cv2.circle(im, (x2,y2),r,colorconn,-1)
-
-
-def blend_transparent(face_img, overlay_t_img):
-    # Split out the transparency mask from the colour info
-    overlay_img = overlay_t_img[:,:,:3] # Grab the BRG planes
-    overlay_mask = overlay_t_img[:,:,3:]  # And the alpha plane
-
-    # Again calculate the inverse mask
-    background_mask = 255 - overlay_mask
-
-    # Turn the masks into three channel, so we can use them as weights
-    overlay_mask = cv2.cvtColor(overlay_mask, cv2.COLOR_GRAY2BGR)
-    background_mask = cv2.cvtColor(background_mask, cv2.COLOR_GRAY2BGR)
-
-    # Create a masked out face image, and masked out overlay
-    # We convert the images to floating point in range 0.0 - 1.0
-    face_part = (face_img * (1 / 255.0)) * (background_mask * (1 / 255.0))
-    overlay_part = (overlay_img * (1 / 255.0)) * (overlay_mask * (1 / 255.0))
-
-    # And finally just add them together, and rescale it back to an 8bit integer image    
-    return np.uint8(cv2.addWeighted(face_part, 255.0, overlay_part, 255.0, 0.0))
-
-def DICTfromKEYWDS(KEYWDS, GRAAFI):
-    NodeNames=list(KEYWDS.keys())
-    i=0
-    for nn in NodeNames:
-        GRAAFI["Nodes"][nn]={"Keywords":KEYWDS[nn]}
-    for nn in NodeNames[:-1]:
-        i+=1
-        for nnn in NodeNames[i:]:
-            for kw in KEYWDS[nn]:
-                for kww in KEYWDS[nnn]:
-                    if kw == kww:
-                        GRAAFI["Edges"].append([nn,nnn,kw])
-    return GRAAFI
-
-def IMAGEStoDICT(IMAGES, GRAAFI):
-    NodeNames=list(IMAGES.keys())
-    for nn in NodeNames:
-        GRAAFI["Nodes"][nn]["image"]=IMAGES[nn]
-    return GRAAFI
-
-
-def DICTfromCARGOFUN(CARGOFUN,ARGS,ARGVALUES,GRAAFI):
-    NodeNames=list(ARGS.keys())
-    i=0
-    GRAAFI["Functions"]={}
-    for nn in NodeNames:
-        GRAAFI["Nodes"][nn]={"Args":{}}
-        for a in ARGS[nn]:
-            GRAAFI["Nodes"][nn]["Args"][a]=timedArg(ARGVALUES[a])
-        GRAAFI["Nodes"][nn]["Function"]=CARGOFUN[nn]
-        if CARGOFUN[nn] is not None:
-            fstr=str(CARGOFUN[nn])
-            i1=fstr.find(" ")
-            i2=fstr.find(" ",i1+1)
-            fstr = fstr[i1+1:i2]
-            GRAAFI["Functions"][fstr]=CARGOFUN[nn]
-
-    for nn in NodeNames[:-1]:
-        i+=1
-        for nnn in NodeNames[i:]:
-            for kw in ARGS[nn]:
-                for kww in ARGS[nnn]:
-                    if kw == kww:
-                        GRAAFI["Edges"].append([nn,nnn,kw])
-     
-    
-    return GRAAFI
-
-
-def GRfromDICT(GRAAFI,rx,ry, colorscheme = "BW", color = (128,100,100)):
-    nodes=[]
-    NodeNames=list(GRAAFI["Nodes"].keys())
-    for nn in NodeNames:
-        n=node(np.random.random()*rx,np.random.random()*ry)
-        n.label = nn
-        n.image=cv2.imread(GRAAFI["Nodes"][nn]["image"])
-        n.cargo = GRAAFI["Nodes"][nn]
-        GRAAFI["Nodes"][nn].update({"node":n})
-        nodes.append(n)
-    edges=[]
-    for e in GRAAFI["Edges"]:
-        n1=GRAAFI["Nodes"][e[0]]["node"]
-        n2=GRAAFI["Nodes"][e[1]]["node"]     
-        ed=edge(n1,n2)
-        if len(e)>2: ed.label =e[2]
-        edges.append(ed)
-        n1.size=n1.size+5.0
-        n2.size=n2.size+5.0
-    GR=graph(nodes,edges)
-    Recolor(GR, colorscheme, color)
-    GR.imgsize=np.array([ry,rx,3])
-    GR.functions=GRAAFI["Functions"]
-    return GR
+##############################################
+# COLOR SCHEMES AND COLOR FUNCTIONS FOR GRAPHS
+##############################################
 
 def Recolor(GR,colorscheme = "BW", color = (128,100,100),balance=0.66,branch=False):
+    # Re-colors the nodes in graph GR with specified color scheme
+    # * GR - graph object with GR.nodes
+    # * colorscheme - a label for coloring scheme to be used
+    #           "color" - single color for all 
+    #           "opposites" - single color and its opposite color
+    #           "oppositesrnd" - color and its opposite color with some randomisation in tones - balance determines ratio of color vs opposite
+    #           "neighbour" - use color and its neighbouring colors, balance determines width of color range
+    #           "neighbourrnd" - neighbour with more randomised toning
+    #           "BW" - black and white - gray tones
+    #           "BWColor" - color and black and white nodes, balance determines ratio between # of color and BW nodes
+    #           "triangle" - color and its semi-opposing colors  - forming triangle in color wheel
+    #           "colorrnd" - color with random saturation
+    #           "colorful" - random colors 
+    #           "random" - picks one of the above color schemes with random arguments...
+    # * color - base color for a color scheme
+    # * balance - balance between base color and e.g. opposing colors
+    # * branch - tone mapping of graph branches using colorBranches()-function
+    
     if colorscheme == "random":
         schemes=["color","opposites","neighbour","neighbourrnd","oppositesrnd","BWColor","triangle","colorrnd","BW","colorful"]
         colorscheme=schemes[np.random.randint(len(schemes))]
@@ -1958,6 +2179,13 @@ def Recolor(GR,colorscheme = "BW", color = (128,100,100),balance=0.66,branch=Fal
 
 
 def colorBranches(GR,order=3, sat = 0.1, inv=True):
+    # Colorisation of graph branches 
+    # GR graph
+    # order - number of iterations taken in coloring
+    # sat saturation boost of colors (0...1)
+    # inv - when True starts coloring from peripheral nodes
+    # inv - when False starts coloring from central nodes
+
     for j in range(order):
         for e in GR.edges:
             c1=np.array(e.node1.color)
@@ -1985,102 +2213,144 @@ def colorBranches(GR,order=3, sat = 0.1, inv=True):
             e.node2.color=(int(c2[0]),int(c2[1]), int(c2[2])  )
 
 def colorblend(NodeColor, FunColor, balance=0.5): 
+    # Returns a color that is a blend of two colors NodeColor and FunColor
+    # balance between colors in blend 
+    # balance = ratio of Funcolor
+    # (1-balance)= ratio of NodeColor
+
     c=np.array([0,0,0])
     for i in range(3):
         c[i] = NodeColor[i]*(1-balance)+ FunColor[i]*balance
     return (int(c[0]),int(c[1]),int(c[2]))
 
-def ALTEdgesfromKEYWDS(KEYWDS,GRAAFI):
-    NodeNames=list(KEYWDS.keys())
-    i=0
-    #for nn in NodeNames:
-    #    GRAAFI["Nodes"].update({nn:{"Keywords":KEYWDS[nn]}})
-    GRF={"Edges":[]}
-    for nn in NodeNames[:-1]:
-        i+=1
-        for nnn in NodeNames[i:]:
-            for kw in KEYWDS[nn]:
-                for kww in KEYWDS[nnn]:
-                    if kw == kww:
-                        GRF["Edges"].append([nn,nnn,kw])
 
-    edges=[]
-    for e in GRF["Edges"]:
-        n1=GRAAFI["Nodes"][e[0]]["node"]
-        n2=GRAAFI["Nodes"][e[1]]["node"]     
-        ed=edge(n1,n2)
-        if len(e)>2: ed.label =e[2]
-        edges.append(ed)
-        n1.size=n1.size+5.0
-        n2.size=n2.size+5.0
-    return edges
 
-def createARGLIST(ARGS,ARGLIST):
-    NodeNames=list(ARGS.keys())
-    for nn in NodeNames:
-        for a in ARGS[nn]:
-            ARGLIST.update({a:None})
-            
-def createNODELIST(ANYLIST,NODELIST):
-    NodeNames=list(ANYLIST.keys())
-    for nn in NodeNames:
-        NODELIST.update({nn:None})
+###################################################
+# EMBED PARTLY TRANSPARENT IMAGE TO BACKGROUND IMAGE
+####################################################
+def blend_transparent(face_img, overlay_t_img):
+    # Blends PARTLY TRANSPARENT IMAGE "overlay_t_img" on top of background "face_img"
 
-def timedArg( a ,dtype="notSpecified"):
-    if dtype == str:
-        a=str(a)
-    elif dtype == int:
-        a=int(a)
-    elif dtype == float:
-        a=float(a)
-    elif dtype == bool:
-        a = a=="True"
-    elif str(dtype) == "<class 'NoneType'>":
-        a = None
-    elif dtype=="notSpecified":
-        pass
+    # Split out the transparency mask from the colour info
+    overlay_img = overlay_t_img[:,:,:3] # Grab the BRG planes
+    overlay_mask = overlay_t_img[:,:,3:]  # And the alpha plane
+
+    # Again calculate the inverse mask
+    background_mask = 255 - overlay_mask
+
+    # Turn the masks into three channel, so we can use them as weights
+    overlay_mask = cv2.cvtColor(overlay_mask, cv2.COLOR_GRAY2BGR)
+    background_mask = cv2.cvtColor(background_mask, cv2.COLOR_GRAY2BGR)
+
+    # Create a masked out face image, and masked out overlay
+    # We convert the images to floating point in range 0.0 - 1.0
+    face_part = (face_img * (1 / 255.0)) * (background_mask * (1 / 255.0))
+    overlay_part = (overlay_img * (1 / 255.0)) * (overlay_mask * (1 / 255.0))
+
+    # And finally just add them together, and rescale it back to an 8bit integer image    
+    return np.uint8(cv2.addWeighted(face_part, 255.0, overlay_part, 255.0, 0.0))
+
+
+
+##################################################
+# Functions for vector manipulation
+##################################################
+def Vlen(V): 
+    #Length of vector V
+    vlen=V[0]*V[0]+V[1]*V[1]
+    return np.sqrt(vlen)
+
+def Vlen2(V): 
+    #Length of vector v squared
+    vlen=V[0]*V[0]+V[1]*V[1]
+    return vlen
+
+def Vangle(v): 
+    # returns angle of a vector 
+    return np.angle(v[0]+v[1]*1j,deg = True)
+
+
+def Normalize(vect): 
+    #returns normalized vector of vect
+    x=vect[0]
+    y=vect[1]
+    if (y==0) and (x==0):
+        v=np.array([0,0])
     else:
-        try:
-            a=eval(a)
-        except:
-            print("Exception: timedArg: Argument data type not known")
-            print("Argument: "+str(a))
-    return [a,time.time()]   
+        r=np.sqrt(x*x+y*y)
+        v=np.array([x/r, y/r])
+    return v
 
-def crunpy(f,argstring,self):
-    #a=argstring[1:-1]
-    eval(f+argstring)
-#def cparam(parameter,value,self):
-#    eval(parameter)#=eval(value)
+def Orthonormal(vi): 
+    #Returns orthonormal vector to vi
+    v=Normalize(vi)
+    V=v[0]+v[1]*1j
+    Vo=np.exp(np.pi*0.5j)*V
+    return np.array([np.real(Vo), np.imag(Vo)])
 
-''' EXAMPLE OF IMAGES, KEYWDS, ALTKEYWDS
-IMAGES={
-    "kuu":"kuu.jpg",
-    "konna":"konna.jpg",
-    "silma":"SILMA.jpg",
-    "janne":"Janne.jpg",
-    "kerpsu":"kerpsu.jpg",
-    "mokki":"mokki.jpg",
-    "sorsa":"sorsa.jpg"
-}
 
-KEYWDS={
-    "kuu":["pimea","maisema","kuu","rakennus"],
-    "konna":["elain","silma","luonto","konna"],
-    "silma":["silma","maisema","ihminen"],
-    "janne":["silma","ihminen"],
-    "kerpsu":["elain"],
-    "mokki":["rakennus","luonto"],
-    "sorsa":["elain","luonto"]
-}
+##########################################
+# Functions for interaction potentials
+##########################################
 
-ALTKEYWDS={
-    "kuu":["musta","sininen","oranssi"],
-    "konna":["keltainen"],
-    "silma":["sininen","harmaa","vihrea","valkoinen"],
-    "janne":["sininen","valkoinen"],
-    "kerpsu":["musta"],
-    "mokki":["harmaa","sininen","vihrea"],
-    "sorsa":["keltainen","sininen","punainen","vihrea"]
-}
-'''
+def potential(dx,dy, mode="normal", scale=1.0): 
+    #Old potential function 
+    #dx=dX[0]
+    #dy=dX[1]
+    r2 = dx*dx + dy*dy
+    r=np.sqrt(r2)
+    dX=Normalize(np.array([dx,dy]))
+    if mode=="rep":
+        p= -20.0/(1+r2)
+    if mode=="normal":
+        p= (r2/128.0-10.0)/(1.0+r2/400.0)/(r+.001)
+
+    if mode=="grouprep":
+        p= -100.0/(1+r2)
+    if mode=="grouppull":
+        p= (r2/128.0-10.0)/(1.0+r2/400.0)/(r+.001)
+        p*=10
+        if p<0: p=0
+    return -p*np.array([dx,dy])*scale
+
+def sigmoid(z):
+    return 1.0/(1.0+np.exp(-z))
+
+def PotentialSize(dX, size=10, repulsion = True,scale=1.0): 
+    #interaction potential between nodes
+    ro = Vlen(dX)
+    dx=Normalize(dX)
+
+    towards=1.0
+    if repulsion: towards = 0.0
+
+    #nearfield
+    rnf=size
+    rmin=10.0
+    rnf=max(rmin,rnf)
+    rnsc=5.0/rnf
+    pnf = -rnf/8.0
+
+    #midfield
+    rmf=(ro/rnf-0.3)
+    pmf = -1.0/(.1+(rmf*rmf))+7*towards
+
+    #farfield
+    rff=7.0*rnf
+    rfsc=20.0/rff
+    pff = 0.5+6.5*towards
+
+    #transition: near-fied - mid-field
+    r=(ro-rnf)*rnsc
+    sgm_nf=sigmoid(r)
+    pnmf= (1.0-sgm_nf)*pnf + sgm_nf*pmf
+
+    #transition: ... - far-field
+    r=(ro-rff)*rfsc
+    sgm_ff=sigmoid(r)
+    p=(1-sgm_ff)*pnmf + sgm_ff*pff
+     
+    return p*dx*scale
+
+
+
