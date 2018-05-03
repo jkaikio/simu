@@ -1381,6 +1381,9 @@ class graph():
                 if command == "new" or command == "New" or command =="NEW":
                     self.newNode()
 
+            # if medium == "sync" or medium == "Sync" or medium == "SYNC":
+            #     self.funcSync(command)
+
             if medium == "rmnode" or medium == "RMNode" or medium == "RMNODE":
                 self.rmNode(command)
 
@@ -1397,6 +1400,17 @@ class graph():
                     cfunct=command[:k]
                     cargs=command[k:]
                     crunpy(cfunct,cargs,self)
+
+    # def funcSync(self,funcname):
+    #     if funcname in GR.functions:
+    #         function=GR.functions[command]
+    #     else:
+    #         print("Function "+ funcname + " not found!")
+    #     nfunc=[]
+    #     for n in nodes:
+    #         if n.cargo["Function"]==function:
+    #             nfunc.append(n)
+    #             n.cargo["Args"]
     
     def rmNode(self,nodelabel):
         # Remove node and related edges from graph

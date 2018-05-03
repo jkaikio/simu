@@ -288,18 +288,17 @@ class Environment():  #Template function
             alratio = 1.0
             allux = 0.0
             daylightfactor =1.0
-
-        if self.time > self.weathertimer:
+        if  not (self.weathertimer -  300000 < self.time < self.weathertimer):
             self.cloudiness=min(max(1.2-np.random.random()*1.5,0),1)
-            self.weathertimer = self.weathertimer + np.random.randint(300000)
-        if self.time > self.cloudtimer:
+            self.weathertimer = self.time + np.random.randint(300000)
+        if not (self.cloudtimer -  900 < self.time < self.cloudtimer):
             self.clouds = min(max(1-np.random.random()*2,0),1)
-            self.cloudtimer = self.cloudtimer + np.random.randint(900)
+            self.cloudtimer = self.time + np.random.randint(900)
 
         lightness = IndoorLight(hour_of_day,self.cloudiness,self.clouds, alratio=alratio, allux =allux,\
                                  daylightfactor=daylightfactor, yearday=day_of_year+172,latitude=self.latitude)
         lightness=max(lightness,0)
-        self.bgcolor=tuple([min(k*lightness/400*daylightfactor,255)for k in [.8,1,1.3]])
+        self.bgcolor=tuple([min(k*lightness/400/daylightfactor,255)for k in [.8,1,1.3]])
         self.bgcolor = colorblend(node.color, self.bgcolor, 0.4)
         args["Lightness"] = timedArg(lightness)
         args["$Indoors"] = timedArg(self.indoors)
