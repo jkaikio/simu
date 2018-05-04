@@ -9,6 +9,7 @@ IMAGES={
     "HarvesterCircuits":None,
     "VoltageRegulation":None,
     "PowerMonitor": None,
+    "SCMonitor": None,
     
     #Logics block
     "Microcontroller":None,
@@ -45,7 +46,8 @@ ARGS={
                          "V_To_Reg","P_Tot_Out","V_Tot_Out", "TotalEnergy","PowerLowAlert","PowerShuttingDown"],
     "VoltageRegulation":["P_To_Reg","V_To_Reg","P_Tot_Out","V_Tot_Out"],
     "PowerMonitor": ["V_PV","P_PV_Out","E_SC","V_SC","E_Batt","V_Batt"],
-    
+    "SCMonitor": ["P_SC_Out","P_Batt","P_To_Reg","_Scale"],
+   
     #Logics block
     "Microcontroller":["TotalEnergy","PowerLowAlert","PowerShuttingDown","P_Tot_Out",\
                        "V_Tot_Out","P_To_Reg","V_To_Reg","P_Sensors","Data_Sensors","OnState_Sensors",\
@@ -81,6 +83,7 @@ CARGOFUN={ #
     "HarvesterCircuits":NF_EHarvester,
     "VoltageRegulation":NF_VRegulator,
     "PowerMonitor": NF_Monitor,
+    "SCMonitor": NF_Monitor,
     
     #Logics block
     "Microcontroller":NF_Microcontroller,
@@ -137,6 +140,7 @@ ARGVALUES={'Data_Sensors': None,
  'RadioMessagePush': "",
  'ServiceRequest_From_Gateway': "",
  'Service_To_Gateway': "",
+ '_Scale':True,
  'TotalEnergy': 0.0,
  'V_Batt': 3.7,
  'V_PV': 0.0,
@@ -144,8 +148,8 @@ ARGVALUES={'Data_Sensors': None,
  'V_To_Reg': 0.0,
  'V_Tot_Out': 0.0}
 
-rx=800
-ry=600
+rx=1600
+ry=1200
 
 GRAAFI={"Nodes":{},"Edges":[]}
 DICTfromCARGOFUN(CARGOFUN, ARGS, ARGVALUES, GRAAFI)

@@ -1400,6 +1400,24 @@ class graph():
                     cfunct=command[:k]
                     cargs=command[k:]
                     crunpy(cfunct,cargs,self)
+            return
+        if i != -1:
+            label=txt[:i]
+            value=txt[i+1:]
+            for n in self.nodes:
+                if label in n.cargo["Args"]:
+                    print(n.label+":")
+                    vtype= type(n.cargo["Args"][label])
+                    if vtype==list:
+                        vtype=type(n.cargo["Args"][label][0])
+                    print(label,n.cargo["Args"][label],vtype)
+                    n.cargo["Args"][label]=timedArg(value, dtype=vtype)
+                    vtype= type(n.cargo["Args"][label])
+                    if vtype==list:
+                        vtype=type(n.cargo["Args"][label][0])
+                    print(label,n.cargo["Args"][label],vtype)
+
+
 
     # def funcSync(self,funcname):
     #     if funcname in GR.functions:
@@ -1468,7 +1486,7 @@ class graph():
             for nn in self.nodes[i:]:
                 for k in nkeys:
                     if k in nn.cargo["Args"]:
-                        if k[0]!="$":
+                        if k[0]!="_":
                             e= edge(n,nn)
                             e.label = k
                             edges.append(e)
@@ -1756,8 +1774,8 @@ class centerline():
 #    'Function': None,
 #    'image': None,
 #    'node': <graafi.node at 0xb0f6748>},
-#   'Environment': {'Args': {'$NF_Environment': <nodefun.Environment at 0xac8d9b0>,
-#     '$Time': [18224500.0, 1525250441.1180801],
+#   'Environment': {'Args': {'_NF_Environment': <nodefun.Environment at 0xac8d9b0>,
+#     '_Time': [18224500.0, 1525250441.1180801],
 #     'Lightness': [8.550698481063068e-12, 1525250441.1180801]},
 #    'Function': <function nodefun.NF_Environment>,
 #    'image': None,
@@ -1872,9 +1890,10 @@ def DICTfromCARGOFUN(CARGOFUN,ARGS,ARGVALUES,GRAAFI):
         i+=1
         for nnn in NodeNames[i:]:
             for kw in ARGS[nn]:
-                for kww in ARGS[nnn]:
-                    if kw == kww:
-                        GRAAFI["Edges"].append([nn,nnn,kw])
+                if kw[0] != "_":
+                    for kww in ARGS[nnn]:
+                        if kw == kww:
+                            GRAAFI["Edges"].append([nn,nnn,kw])
      
     
     return GRAAFI
@@ -1911,6 +1930,7 @@ def GRfromDICT(GRAAFI,rx,ry, colorscheme = "BW", color = (128,100,100)):
     GR.imgsize=np.array([ry,rx,3])
     GR.functions=GRAAFI["Functions"]
     return GR
+
 
 def ALTEdgesfromKEYWDS(KEYWDS,GRAAFI):
     # Returns a list of edges (edge-objects) from based on KEYWDS
