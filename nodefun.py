@@ -77,6 +77,7 @@ class Monitor():  #Template function
         self.bgcolor = (50,20,5)
         self.every_nth=1
         self.ave=1
+        self.scale=False
     
     def update(self,args,dt=60):
         #dt=self.deltatime #vaihdetaan logiikan pyytämään aikahyppyyn myöhemmin
@@ -99,6 +100,8 @@ class Monitor():  #Template function
             self.every_nth=int(args["$Reso"][0])
         if "$Ave" in args:
             self.ave = int(args["$Ave"][0])
+        if "$Scale" in args:
+            self.scale = readBoolArg("$Scale",args)
         return args
 
     def Draw(self):
@@ -158,10 +161,24 @@ class Monitor():  #Template function
         mxd=list(np.zeros(ld))
         mnd=list(np.zeros(ld))
 
+        MXD=0
+        MND=0
+        if self.scale:
+            for i in range(ld):
+                if (type(data[0,i]) != bool) and (data[0,i] is not None)and (type(data[0,i]) != str):
+                    MXD=max(max(data[:,i]),MXD)
+                    MND=min(min(data[:,i]),MND)
+                    
+
+
         for i in range(ld):
             if (type(data[0,i]) != bool) and (data[0,i] is not None)and (type(data[0,i]) != str):
-                mxd[i]=max(data[:,i])
-                mnd[i]=min(data[:,i])
+                if self.scale:
+                    mxd[i]=MXD
+                    mnd[i]=MND
+                else:
+                    mxd[i]=max(data[:,i])
+                    mnd[i]=min(data[:,i])
                 if mnd[i]>0:mnd[i]=0
                 if mxd[i]<0:mxd[i]=0
                 if mxd[i]>0 and mnd[i]==0:
@@ -253,6 +270,7 @@ class Environment():  #Template function
         self.clouds=0.5
         self.alratio=18/24
         self.allux=300
+        self.autolight=True
         self.daylightfactor = 1/32
         self.latitude=65.0
 
@@ -295,7 +313,7 @@ class Environment():  #Template function
             self.clouds = min(max(1-np.random.random()*2,0),1)
             self.cloudtimer = self.time + np.random.randint(900)
 
-        lightness = IndoorLight(hour_of_day,self.cloudiness,self.clouds, alratio=alratio, allux =allux,\
+        lightness = IndoorLight(hour_of_day,self.cloudiness,self.clouds, alratio=alratio, allux =allux,autolight=self.autolight,\
                                  daylightfactor=daylightfactor, yearday=day_of_year+172,latitude=self.latitude)
         lightness=max(lightness,0)
         self.bgcolor=tuple([min(k*lightness/400/daylightfactor,255)for k in [.8,1,1.3]])
@@ -353,10 +371,12 @@ def OutdoorLight(hour,cloudiness, clouds, yearday= 91,latitude = 65):
     
     return light
     
-def IndoorLight(hour,cloudiness,clouds,alratio=18/24, allux =300, daylightfactor=1/32, yearday=91,latitude=65):
+def IndoorLight(hour,cloudiness,clouds,alratio=18/24, allux =300, autolight=True, daylightfactor=1/32, yearday=91,latitude=65):
+    OL = OutdoorLight(hour,cloudiness,clouds, yearday= yearday,latitude = latitude) * daylightfactor
     AL = ArtiLight(alratio,hour,allux)
-    OL = OutdoorLight(hour,cloudiness,clouds, yearday= yearday,latitude = latitude)
-    indoorlight = AL + OL * daylightfactor
+    if autolight and  (OL  > allux):
+        AL = 0
+    indoorlight = AL + OL 
     return indoorlight
 
 
@@ -367,6 +387,8 @@ def IndoorLight(hour,cloudiness,clouds,alratio=18/24, allux =300, daylightfactor
 def NF_SolarCell(args, node, draw=False,dt=60): 
     Lightness = readFloatArg("Lightness",args)
     L=Lightness
+
+    Area=0.5 # 0.5 = half sheet used
     #k = 0.000086173303 #eV / K
     #T=0
     #perkT = 1/((273+T)*k) 
@@ -387,7 +409,7 @@ def NF_SolarCell(args, node, draw=False,dt=60):
     I=[min(i,0) for i in I]
     #PMx=-1*min(I*U)
     V_PV = U[np.argmin(I*U)]
-    I_PV = -1*I[np.argmin(I*U)]
+    I_PV = -1*I[np.argmin(I*U)] * Area
     P_PV_Out = V_PV*I_PV    
 
     #Huom: Open circuit malli 
@@ -463,7 +485,7 @@ def NF_Supercap(args, node, draw=False, dt=60): #PIKATESTI...
 
     n_sc=3 #supercap-elementtien määrä
     C1 = 0.3 #TUT /NA supercap
-    V_Max_SC = 1.1 * n_sc
+    V_Max_SC = 1.05 * n_sc
     E_Max_SC = C1/2 * V_Max_SC * V_Max_SC /n_sc    
 
     V_SC1 = np.sqrt(2/C1 * E_SC /n_sc)
@@ -511,7 +533,37 @@ def NF_Batt(args, node, draw=False,dt=60): #PIKATESTI...
     
     return args
 
+def SUConverter(V_in, V_out, P_load,P_in = None): 
+    # step-up converter 
+    # reference LTC3526L/LTC3526LB
+    # V_out should be 3.3 volt...
+    if V_in<=0:
+        return 0,0    
 
+    if P_in is None:
+        if P_load <= 0: return 1e-6,0
+        I_load = P_load / V_out
+        I_log = np.log10(I_load)
+        eflevel=(min(V_in,V_out)-1.2)/1.8*0.13+0.82
+        efficiency=sigmoid((I_log+4.9)*2)*sigmoid((-0.2-I_log)*6)*eflevel
+        P_in = P_load / efficiency
+        P_in = max(P_in,5e-5)
+        if V_in > V_out:
+            P_in = max(P_in,I_load * V_in) #a guess ... should be checked !!!
+        if V_in <0.8: P_in,P_load = 1e-6,0
+
+    else: #If P_in given
+        if P_in <= 0: return 1e-6,0
+        I_in = P_in / V_in   
+        I_log = np.log10(I_in)-(3.0-V_in)/4
+        eflevel=(min(V_in,V_out)-1.2)/1.8*0.13+0.82
+        efficiency=sigmoid((I_log+4.65)*2.4)*sigmoid((-0.02-I_log)*5.0)*eflevel
+        P_load = P_in*efficiency
+        if V_in > V_out:
+            P_load = min(P_load,I_in * V_out)
+        if V_in <0.8: P_in,P_load = 1e-6,0
+        
+    return P_in,P_load
  
 def NF_EHarvester(args, node, draw=False,dt=60): 
     OnState_Main = readBoolArg("OnState_Main",args)
@@ -534,48 +586,56 @@ def NF_EHarvester(args, node, draw=False,dt=60):
     PowerShuttingDown = readBoolArg("PowerShuttingDown",args)
 
     #dt=60
+    V_sys=3.3
 
     OnState_EHarvester = (E_Batt+E_SC)>0 
 
-    if (V_PV>0) and (not OnState_EHarvester) and OnState_Main: #(PV only)
-        if V_PV > V_SC:
-            I_PV = P_PV_Out / V_PV
-            P_SC_In = I_PV*(V_PV-V_SC)*dt*0.8 #V_PV*.01 
-        else:
-            P_SC_In=0
+    #photovoltaic out
+    P_PV_Out,P_PV3 = SUConverter(V_PV, V_sys, 0,P_in = P_PV_Out)
+    I_PV3 = P_PV3 / V_sys
+
+    #charge supercap
+    if V_sys > V_SC:
+        P_SC_In = I_PV3 * (V_sys-V_SC) * 0.8 * dt
+    else:
+        P_SC_In = 0
 
 
     if OnState_Main and OnState_EHarvester:
-        if V_PV > V_SC:
-            I_PV = P_PV_Out / V_PV
-            P_SC_In = I_PV*(V_PV-V_SC)*dt*0.8 #V_PV*.01 
-        else:
-            P_SC_In=0
 
         P_Batt=0.0
         P_SC_Out=0.0
         P_self=0.000002
 
         P_rem = P_To_Reg + P_self #Harvesterin viemä virta...??
-        P_SC_Max=0.07
+        #P_SC_Max=0.07
         if E_SC>0:
-            P_SC_Out=min(P_rem, P_SC_Max, E_SC/dt)
-            P_SC_Out = max(P_SC_Out,0)
-            P_rem = P_To_Reg - P_SC_Out
+            Pi,Po = SUConverter(V_SC, V_sys, P_rem)
+            if Pi<E_SC/dt:
+                P_SC_Out = Pi
+            else:
+                P_SC_Out = E_SC/dt
+                Pi,Po = SUConverter(V_SC, V_sys, 0, P_in = P_SC_Out)
+            P_rem = P_rem - Po
+
         P_Batt_Max=0.03            
         if E_Batt>0:
-            P_Batt = min(P_rem, P_Batt_Max,E_Batt/dt)
-            P_Batt = max(P_Batt,0)
-            P_rem = P_rem - P_Batt
+            Pi,Po = SUConverter(V_Batt, V_sys, P_rem)
+            if Pi<E_Batt/dt:
+                P_Batt = Pi
+            else:
+                P_Batt = E_Batt/dt
+                Pi,Po = SUConverter(V_Batt, V_sys, 0, P_in = P_Batt)
+            P_rem = P_rem - Po
         
-        V_To_Reg = 3.0
-        if 0 < P_To_Reg < P_Batt + P_SC_Out:
-            V_To_Reg = V_To_Reg * (P_Batt + P_SC_Out)/P_To_Reg
-        P_To_Reg = P_Batt + P_SC_Out -P_self
+        V_To_Reg = V_sys
+        if P_rem > 0:
+            V_To_Reg = V_To_Reg * (P_To_Reg + P_self - P_rem)/(P_To_Reg + P_self)
+        P_To_Reg = max(P_To_Reg - P_rem, 0)
 
         TotalEnergy = E_SC + E_Batt - P_To_Reg * dt
         Emax=.2
-        if E_SC < 0.2*Emax:
+        if V_SC < 2:
             PowerLowAlert=True
         else: 
             PowerLowAlert=False
@@ -663,8 +723,8 @@ class Microcontroller():  #Template function
         self.mode="off" #off, shutdown, deepsleep, sleep, energysaving, booting, on
         #self.P={"off":0.0,"shutdown":0.005,"deepsleep":0.003,"wakingfromdeepsleep":0.01,\
         #        "sleep":0.007,"wakingfromsleep":0.01,"energysaving":0.01,"booting":0.01,"ON":0.02} 
-        self.P={"off":0.0,"shutdown":0.000005,"deepsleep":0.000003,"wakingfromdeepsleep":0.000010,\
-                        "sleep":0.000007,"wakingfromsleep":0.00001,"energysaving":0.00001,"booting":0.00001,"ON":0.00002}
+        self.P={"off":0.0,"shutdown":1e-4,"deepsleep":1e-5,"wakingfromdeepsleep":1e-4,\
+                        "sleep":2e-5,"wakingfromsleep":1e-4,"energysaving":1e-4,"booting":2e-4,"ON":2e-4}
 
     def update(self, args, node,dt):
         P_Tot_Out     = readFloatArg("P_Tot_Out",args)
