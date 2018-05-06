@@ -490,21 +490,22 @@ def NF_Supercap(args, node, draw=False, dt=60): #PIKATESTI...
     ######################
     #n_sc=3 #supercap-elementtien määrä
     #C1 = 0.3 #TUT /NA supercap    
-    n_sc = readIntArg("_N_Of_Elements",args,ifnotvalue=3)
-    C1 = readFloatArg("_Capacitance",args,ifnotvalue=0.3)
+    n_gr = readIntArg("_N_Of_Groups",args,ifnotvalue=1) # Parallel
+    n_sc = readIntArg("_N_Of_Elements",args,ifnotvalue=3) # Series
+    C1 = readFloatArg("_Capacitance",args,ifnotvalue=0.3) #Single capacitor
 
-    V_Max_SC = 1.05 * n_sc
-    E_Max_SC = C1/2 * V_Max_SC * V_Max_SC /n_sc    
+    V_Max_SC = 1.05 * n_sc 
+    E_Max_SC = C1/2 * V_Max_SC * V_Max_SC /n_sc   * n_gr
 
-    V_SC1 = np.sqrt(2/C1 * E_SC /n_sc)
+    V_SC1 = np.sqrt(2/C1 * E_SC /n_sc / n_gr)
 
-    Pvuoto = np.power(10,(V_SC1 - 1.06)/0.14-7) * V_SC1 * n_sc #TUT /NA supercap
+    Pvuoto = np.power(10,(V_SC1 - 1.06)/0.14-7) * V_SC1 * n_sc * n_gr #TUT /NA supercap
     dE = (P_SC_In - Pvuoto - P_SC_Out) * dt 
     
     if -1 * dE < E_SC:
         E_SC +=  dE
         E_SC = min(E_SC , E_Max_SC)
-        V_SC1 = np.sqrt(2 / C1 * E_SC/ n_sc)
+        V_SC1 = np.sqrt(2 / C1 * E_SC/ n_sc / n_gr)
     else: 
         V_SC1 = 0
         E_SC = 0
@@ -726,7 +727,10 @@ class Microcontroller():  #Template function
         self.label =label
         self.parent = None
         self.time = 0.0
-        self.deltatime=60.0 #sekunteina 
+        #self.showmonitor=False
+        #self.monitor=Monitor()
+        #self.deltatime=60.0 #sekunteina 
+        #self.dtself=0.001
         self.bgcolor = (200,200,180)
         self.mode="off" #off, shutdown, deepsleep, sleep, energysaving, booting, on
         #self.P={"off":0.0,"shutdown":0.005,"deepsleep":0.003,"wakingfromdeepsleep":0.01,\
