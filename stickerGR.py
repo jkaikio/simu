@@ -148,8 +148,8 @@ ARGVALUES={'Data_Sensors': None,
  'V_To_Reg': 0.0,
  'V_Tot_Out': 0.0}
 
-rx=1200
-ry=800
+rx=800
+ry=600
 
 GRAAFI={"Nodes":{},"Edges":[]}
 DICTfromCARGOFUN(CARGOFUN, ARGS, ARGVALUES, GRAAFI)
