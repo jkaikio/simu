@@ -386,10 +386,49 @@ def IndoorLight(hour,cloudiness,clouds,alratio=18/24, allux =300, autolight=True
 
 
 
-
-
-
 def NF_SolarCell(args, node, draw=False,dt=60): 
+    Lightness = readFloatArg("Lightness",args)
+    L=Lightness
+
+    #Area=0.1 # 0.5 = half sheet used
+    Area = readFloatArg("_Area",args,ifnotvalue=1)
+    #k = 0.000086173303 #eV / K
+    #T=0
+    #perkT = 1/((273+T)*k) 
+    perkT = 39 #(1/0.026)
+    
+    I0=0.00001
+    kL=1e-6
+    IL=kL*L
+    U=np.arange(0,7,.01)
+
+    #RS=5/IL[1]
+    RSH=80000
+    n=22
+    IL0 = I0*(np.exp(-5*perkT/n)-1)-5/RSH
+
+    V = U - 5#Il*RS
+    I = I0*(np.exp(V*perkT/n)-1)-IL+ V/RSH -IL0
+    I=[min(i,0) for i in I]
+    #PMx=-1*min(I*U)
+    V_PV = U[np.argmin(I*U)]
+    I_PV = -1*I[np.argmin(I*U)] * Area
+    P_PV_Out = V_PV*I_PV    
+
+    #Huom: Open circuit malli 
+    #http://www.ee.sc.edu/personal/faculty/simin/ELCT566/21%20Solar%20Cells%20II.pdf
+
+    #Light_to_volt=3.0
+    #MaxVolt=5
+    #V_PV = max(min(Lightness*Light_to_volt,MaxVolt),0)
+    args["V_PV"] = timedArg(V_PV)
+    args["P_PV_Out"] = timedArg(P_PV_Out)
+    #print("SolarCell",Lightness,V_PV)
+    return args
+
+
+
+def NF_SolarCellMaxPow(args, node, draw=False,dt=60): 
     Lightness = readFloatArg("Lightness",args)
     L=Lightness
 
