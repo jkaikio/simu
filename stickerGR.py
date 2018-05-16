@@ -31,6 +31,7 @@ IMAGES={
     
     #Environment block
     "Environment":None,
+    "LightMonitor":None
     
 }
 
@@ -71,7 +72,8 @@ ARGS={
     "Internet":["ServiceRequest_From_Gateway","Service_To_Gateway"],
     
     #Environment block
-    "Environment":["Lightness"]
+    "Environment":["Lightness"],
+    "LightMonitor":["Lightness"]
 }
 
 CARGOFUN={ #
@@ -104,7 +106,8 @@ CARGOFUN={ #
     "Internet":None,
     
     #Environment block
-    "Environment":NF_Environment
+    "Environment":NF_Environment,
+    "LightMonitor":NF_Monitor
 }
 
 ARGVALUES={'Data_Sensors': None,

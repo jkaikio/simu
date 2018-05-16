@@ -211,7 +211,7 @@ class Monitor():  #Template function
                 color=colorblend(color,col,0.2)      
                 for i in range(len(data)-1): 
                     cv2.line(img,(i,int(data[i,j])),(i+1,int(data[i+1,j])),color,1,cv2.LINE_AA)
-                cv2.putText(img,str(np.round(mnd[j],2))+" < " + self.sourcelabels[j] + " < "+str(np.round(mxd[j],2)),\
+                cv2.putText(img,'{:.3g}'.format(mnd[j])+" < " + self.sourcelabels[j] + " < "+'{:.3g}'.format(mxd[j]),\
                     (10,30+j*30),cv2.FONT_HERSHEY_SIMPLEX, .5, color )
         return img
 
@@ -321,7 +321,11 @@ class Environment():  #Template function
         lightness = IndoorLight(hour_of_day,self.cloudiness,self.clouds, alratio=alratio, allux =allux,autolight=self.autolight,\
                                  daylightfactor=daylightfactor, yearday=day_of_year+172,latitude=self.latitude)
         lightness=max(lightness,0)
-        self.bgcolor=tuple([min(k*lightness/400/daylightfactor,255)for k in [.8,1,1.3]])
+        if (daylightfactor > 0) and (allux > 0):
+            colorconst=255/(100000*daylightfactor+allux)
+        else:
+            colorconst=0 
+        self.bgcolor=tuple([min(k*lightness*colorconst,255)for k in [.8,1,1.3]])
         self.bgcolor = colorblend(node.color, self.bgcolor, 0.4)
         args["Lightness"] = timedArg(lightness)
         args["_Indoors"] = timedArg(self.indoors)
@@ -388,8 +392,7 @@ def IndoorLight(hour,cloudiness,clouds,alratio=18/24, allux =300, autolight=True
 
 def NF_SolarCell(args, node, draw=False,dt=60): 
     Lightness = readFloatArg("Lightness",args)
-    L=Lightness
-
+    #Voltage = readFloatArg("V_PV")
     #Area=0.1 # 0.5 = half sheet used
     Area = readFloatArg("_Area",args,ifnotvalue=1)
     #k = 0.000086173303 #eV / K
@@ -398,8 +401,8 @@ def NF_SolarCell(args, node, draw=False,dt=60):
     perkT = 39 #(1/0.026)
     
     I0=0.00001
-    kL=1e-6
-    IL=kL*L
+    kL=1e-6 #Kerroin
+    IL=kL*Lightness #virta
     U=np.arange(0,7,.01)
 
     #RS=5/IL[1]
@@ -824,9 +827,14 @@ class Microcontroller():  #Template function
                 self.mode="shutdown"
                 P_Tot_Out= self.P["shutdown"]  
 
-        #*********DEBUGGING********
-        #self.mode="deepsleep"
-        #P_Tot_Out= self.P["deepsleep"]  
+        #*********FORCESLEEPMODE********
+        if not self.mode=="off":
+            if readBoolArg("_ForceSleep",args,ifnotvalue=False):
+                self.mode="deepsleep"
+                P_Tot_Out= self.P["deepsleep"]  
+            elif self.mode=="deepsleep":
+                self.mode="booting"
+                P_Tot_Out=self.P["wakingfromdeepsleep"]
         #**************************
 
         args["_MC_mode"]= timedArg(self.mode)
